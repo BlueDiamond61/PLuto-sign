@@ -245,7 +245,7 @@ enum IPAService {
                 assets = lib.assets
                 activity = lib.activity
             }
-        } catch { error = error.localizedDescription }
+        } catch { self.error = error.localizedDescription }
     }
     private func save() {
         do { try JSONEncoder().encode(Library(ipas: ipas, assets: assets, activity: activity)).write(to: PlutoStorage.library, options: .atomic) }
