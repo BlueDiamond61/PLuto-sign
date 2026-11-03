@@ -68,3 +68,7 @@ To check the iOS project compilation, open [GitHub Actions](https://github.com/B
 The iOS app homepage has a **Download Home Screen Profile** action. The profile adds only a removable Web Clip shortcut to the project homepage. It does not install certificates, configure trust, enroll MDM, or make unsigned IPA packages installable.
 
 The public profile landing page is deployed from `docs/` through GitHub Pages. On iPhone, open it in Safari, tap the download button, tap **Allow**, then open Settings → **Profile Downloaded** to review and install. iOS removes a downloaded-but-uninstalled profile after a short time, so complete the review promptly.
+
+### One-time Pages setup
+
+The GitHub connection cannot enable Pages settings for you. In this repository, open **Settings → Pages**, set **Build and deployment → Source** to **GitHub Actions**, then open **Actions** and rerun **Deploy Pluto Sign homepage**. After that deployment completes, the profile link in the iOS Home tab will be live.
