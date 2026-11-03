@@ -368,6 +368,16 @@ struct Dashboard: View {
                     }
                     Panel {
                         VStack(alignment: .leading, spacing: 10) {
+                            Text("PROFILE DOWNLOAD").font(.caption.bold()).foregroundStyle(Style.pink)
+                            Text("Add a removable Pluto Sign shortcut to your iPhone Home Screen.").font(.subheadline).foregroundStyle(Style.muted)
+                            Link(destination: URL(string: "https://bluediamond61.github.io/PLuto-sign/pluto-sign-home.mobileconfig")!) {
+                                Label("Download Home Screen Profile", systemImage: "person.crop.square.badge.plus").frame(maxWidth: .infinity)
+                            }.buttonStyle(MainButton())
+                            Text("After tapping Allow in Safari, open Settings → Profile Downloaded and review the profile before installing.").font(.caption).foregroundStyle(Style.muted)
+                        }
+                    }
+                    Panel {
+                        VStack(alignment: .leading, spacing: 10) {
                             Text("RECENT ACTIVITY").font(.caption.bold()).foregroundStyle(Style.muted)
                             if store.activity.isEmpty { Text("Imports and exports appear here.").font(.subheadline).foregroundStyle(Style.muted) }
                             ForEach(Array(store.activity.enumerated()), id: \.offset) { _, item in Label(item, systemImage: "checkmark.circle.fill").font(.subheadline) }
