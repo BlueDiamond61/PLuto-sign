@@ -62,3 +62,9 @@ The native SwiftUI project is in [ios/](ios/). It includes IPA import, metadata 
 To check the iOS project compilation, open [GitHub Actions](https://github.com/BlueDiamond61/PLuto-sign/actions) and run **Pluto Sign iOS Build Check**. Its output is an iOS Simulator artifact, not an installable iPhone IPA.
 
 **Device distribution:** a physical-device IPA must be signed through an authorized Apple workflow with a matching provisioning profile before uploading it to [InstallOnAir](https://www.installonair.com/). InstallOnAir hosts a signed IPA; it does not sign it or remove Apple's device authorization requirements.
+
+## iPhone Home Screen profile
+
+The iOS app homepage has a **Download Home Screen Profile** action. The profile adds only a removable Web Clip shortcut to the project homepage. It does not install certificates, configure trust, enroll MDM, or make unsigned IPA packages installable.
+
+The public profile landing page is deployed from `docs/` through GitHub Pages. On iPhone, open it in Safari, tap the download button, tap **Allow**, then open Settings → **Profile Downloaded** to review and install. iOS removes a downloaded-but-uninstalled profile after a short time, so complete the review promptly.
