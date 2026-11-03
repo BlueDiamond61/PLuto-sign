@@ -54,3 +54,11 @@ PlutoSign/
 ## Dependency
 
 - [ZIPFoundation](https://github.com/weichsel/ZIPFoundation) — MIT-licensed Swift package used to read IPA ZIP archives.
+
+## Native iOS version
+
+The native SwiftUI project is in [ios/](ios/). It includes IPA import, metadata inspection, archive browsing/search, version audit and metadata synchronization, P12/PFX import into Keychain, provisioning profile inventory, and signing-request export.
+
+To check the iOS project compilation, open [GitHub Actions](https://github.com/BlueDiamond61/PLuto-sign/actions) and run **Pluto Sign iOS Build Check**. Its output is an iOS Simulator artifact, not an installable iPhone IPA.
+
+**Device distribution:** a physical-device IPA must be signed through an authorized Apple workflow with a matching provisioning profile before uploading it to [InstallOnAir](https://www.installonair.com/). InstallOnAir hosts a signed IPA; it does not sign it or remove Apple's device authorization requirements.
