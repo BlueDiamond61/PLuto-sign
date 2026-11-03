@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>PayloadContent</key>
+    <array>
+        <dict>
+            <key>FullScreen</key>
+            <false/>
+            <key>IsRemovable</key>
+            <true/>
+            <key>Label</key>
+            <string>Pluto Sign</string>
+            <key>PayloadDescription</key>
+            <string>Adds a removable Home Screen shortcut to the Pluto Sign project homepage.</string>
+            <key>PayloadDisplayName</key>
+            <string>Pluto Sign Home Screen Shortcut</string>
+            <key>PayloadIdentifier</key>
+            <string>com.bluediamond.plutosign.webclip</string>
+            <key>PayloadType</key>
+            <string>com.apple.webClip.managed</string>
+            <key>PayloadUUID</key>
+            <string>6FD5D9E2-5A0D-44BC-92EF-4C1F8AA1C51D</string>
+            <key>PayloadVersion</key>
+            <integer>1</integer>
+            <key>Precomposed</key>
+            <true/>
+            <key>URL</key>
+            <string>https://bluediamond61.github.io/PLuto-sign/</string>
+        </dict>
+    </array>
+    <key>PayloadDescription</key>
+    <string>Creates a removable Pluto Sign website shortcut on the Home Screen. This profile does not install certificates, configure VPN, enroll device management, or enable IPA installation.</string>
+    <key>PayloadDisplayName</key>
+    <string>Pluto Sign Home Screen Shortcut</string>
+    <key>PayloadIdentifier</key>
+    <string>com.bluediamond.plutosign.homeprofile</string>
+    <key>PayloadOrganization</key>
+    <string>Pluto Sign</string>
+    <key>PayloadRemovalDisallowed</key>
+    <false/>
+    <key>PayloadUUID</key>
+    <string>B9F83163-4B8A-4BBD-B836-809C31BCE482</string>
+    <key>PayloadVersion</key>
+    <integer>1</integer>
+    <key>PayloadType</key>
+    <string>Configuration</string>
+</dict>
+</plist>
