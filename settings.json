@@ -1,0 +1,7 @@
+{
+  "files.associations": {
+    "*.swift": "swift"
+  },
+  "editor.formatOnSave": false,
+  "files.trimTrailingWhitespace": true
+}
