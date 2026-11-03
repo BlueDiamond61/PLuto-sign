@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#10091f">
+<title>Pluto Sign — iOS Profile</title>
+<style>
+:root{color-scheme:dark;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#0b0715;color:#f7f2ff}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at top,#2a1550 0%,#0b0715 58%)}
+main{width:min(100%,540px);padding:30px;border:1px solid #ffffff18;border-radius:26px;background:#160f27;box-shadow:0 24px 80px #0008}
+.brand{font-size:14px;letter-spacing:.22em;font-weight:800;color:#c69cff}
+h1{font-size:34px;line-height:1.05;margin:12px 0}
+p{line-height:1.65;color:#c9bfd9}
+a.download{display:block;text-align:center;text-decoration:none;color:white;font-weight:750;padding:16px 18px;margin:24px 0 18px;border-radius:14px;background:linear-gradient(100deg,#8855e8,#c16be8)}
+.steps{padding:16px;border-radius:16px;background:#211735}
+li{margin:10px 0;color:#e5dcef;line-height:1.5}
+.note{font-size:13px;color:#a99dbb}
+</style>
+</head>
+<body>
+<main>
+  <div class="brand">PLUTO SIGN</div>
+  <h1>Home Screen profile</h1>
+  <p>Download the Pluto Sign configuration profile to add a removable website shortcut to your iPhone Home Screen.</p>
+  <a class="download" href="./pluto-sign-home.mobileconfig">Download configuration profile</a>
+  <section class="steps">
+    <strong>On your iPhone</strong>
+    <ol>
+      <li>Open this page in Safari.</li>
+      <li>Tap <strong>Download configuration profile</strong>, then tap <strong>Allow</strong> when iOS asks.</li>
+      <li>Open <strong>Settings</strong> and tap <strong>Profile Downloaded</strong>.</li>
+      <li>Review the profile and tap <strong>Install</strong> to add the Pluto Sign website shortcut.</li>
+    </ol>
+  </section>
+  <p class="note">This profile adds only a removable Home Screen web shortcut to this project page. It does not install a certificate, change trust settings, enroll device management, or make unsigned apps installable. You can remove it later in Settings → General → VPN &amp; Device Management.</p>
+  <p class="note"><a href="https://github.com/BlueDiamond61/PLuto-sign" style="color:#c69cff">View source on GitHub</a></p>
+</main>
+</body>
+</html>
