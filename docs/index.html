@@ -1027,13 +1027,12 @@ async function previewEntry(path){
    const img=document.createElement("img");img.alt="Preview of "+path;img.src=archivePreviewURL;out.appendChild(img);
    const note=document.createElement("div");note.className="rowdetail";note.textContent=sizeText(blob.size)+" · image preview";out.appendChild(note);
   }else if(["txt","json","xml","plist","strings","md","csv","html","css","js","yaml","yml","ini","cfg","conf","log","entitlements"].includes(ext)){
-   if(entry._data&&entry._data.uncompressedSize>4*1024*1024)throw new Error("This text file exceeds the 4 MB editor limit.");
+   if(entry._data&&entry._data.uncompressedSize>1024*1024)throw new Error("This text file exceeds the 1 MB mobile editor limit. Download it to edit separately.");
    let text;
    if(ext==="plist")text=JSON.stringify(parsePlistFull(await entry.async("arraybuffer")),null,2);
    else if(ext==="json"){const raw=await entry.async("string");try{text=JSON.stringify(JSON.parse(raw),null,2);}catch(e){text=raw;}}
    else text=await entry.async("string");
-   const area=document.createElement("textarea");area.className="preview-text";area.readOnly=false;area.spellcheck=false;area.autocapitalize="off";area.setAttribute("autocorrect","off");area.setAttribute("autocomplete","off");area.setAttribute("aria-label","Editable file contents");area.value=text.slice(0,150000);
-   if(text.length>150000)area.value+="\n\n[Preview truncated at 150,000 characters. Only the visible first 150,000 characters can be saved.]";
+   const area=document.createElement("textarea");area.className="preview-text";area.readOnly=false;area.spellcheck=false;area.autocapitalize="off";area.setAttribute("autocorrect","off");area.setAttribute("autocomplete","off");area.setAttribute("aria-label","Editable file contents");area.value=text;
    out.appendChild(area);
    const hint=document.createElement("div");hint.className="preview-keyboard-hint";hint.textContent="Tap the text to open your phone keyboard. Use Select All, then Backspace to clear selected text, or use the controls below.";out.appendChild(hint);
    const selectAll=document.createElement("button");selectAll.className="quiet smallbtn";selectAll.textContent="Select all text";
@@ -1046,7 +1045,6 @@ async function previewEntry(path){
    save.addEventListener("click",async()=>{
     try{
      let value=area.value;
-     if(text.length>150000)throw new Error("This file is too large for the editor preview. Download it to edit separately.");
      if(ext==="json")JSON.parse(value);
      if(ext==="plist")value=plistToXML(JSON.parse(value));
      item.zip.file(path,value,{binary:false});
