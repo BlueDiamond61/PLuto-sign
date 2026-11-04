@@ -1,5 +1,20 @@
-Native SwiftUI iOS companion for Pluto Sign. Includes IPA import and metadata inspection, archive browsing, archive-wide search for dylib/plist/framework paths, embedded bundle version audit, metadata-only version synchronization, P12/PFX import protected in iOS Keychain, provisioning profile inventory, and signing request export.
+# Pluto Sign iOS
 
-The app does not sign or install arbitrary IPAs. Actual signing must use an authorized Apple workflow. InstallOnAir hosts an already-signed device IPA; it does not sign it. A simulator build artifact is not installable on a physical iPhone.
+Native SwiftUI project for the Pluto Sign workspace.
 
-Open ios/PlutoSign.xcodeproj in Xcode on macOS. The GitHub Actions workflow checks compilation on an iOS Simulator using a hosted macOS runner. Set a unique bundle ID and a legitimate Apple signing team to make a device build.
+## App areas
+- **Home:** refreshed dashboard, library counts, quick actions, profile page and recent activity.
+- **IPAs:** multi-select IPA import, metadata inspection, archive browsing/search, version audit and metadata synchronization.
+- **Files:** general local document imports with share and delete actions. IPA and provisioning profile files route to their dedicated sections.
+- **Assets:** import your own P12/PFX files after password validation; store the P12 data in iOS Keychain. Import provisioning profiles into app-private storage.
+- **Signing:** select an IPA, certificate identity and profile; check that inputs are present; export a signing request.
+
+## Build
+Open `ios/PlutoSign.xcodeproj` in Xcode on macOS. GitHub Actions builds an iOS Simulator target on a hosted macOS runner. The simulator artifact is not installable on a physical iPhone.
+
+## Signing limitations
+The iOS app does not re-sign or install arbitrary IPA packages. A local input check is not proof that a P12 identity and provisioning profile are compatible. Actual signing must happen in an authorized Apple workflow that validates bundle ID, profile expiry, entitlements, device/distribution method, certificate pairing and final signature. Metadata edits invalidate the original IPA signature.
+
+The `.mobileconfig` file installs only a removable Web Clip shortcut to the Pluto Sign homepage. It does not install the native app, certificates, VPN or management settings.
+
+Do not upload P12/PFX files, passwords, private keys or provisioning profiles to this public repository.
