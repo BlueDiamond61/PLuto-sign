@@ -112,52 +112,6 @@ enum PlutoKeychain {
         ] as CFDictionary)
     }
 }
-struct ProvisioningProfileInfo {
-    let name: String
-    let uuid: String
-    let team: String
-    let applicationIdentifier: String
-    let expiration: Date
-}
-enum ProvisioningProfileInspector {
-    static func decode(_ data: Data) throws -> [String: Any] {
-        var decoder: CMSDecoder?
-        let createStatus = CMSDecoderCreate(&decoder)
-        guard createStatus == errSecSuccess, let decoder else { throw PlutoError.keychain(createStatus) }
-        defer { CFRelease(decoder) }
-        let updateStatus = data.withUnsafeBytes { raw -> OSStatus in
-            guard let base = raw.baseAddress else { return errSecParam }
-            return CMSDecoderUpdateMessage(decoder, base, raw.count)
-        }
-        guard updateStatus == errSecSuccess else { throw PlutoError.keychain(updateStatus) }
-        let finalStatus = CMSDecoderFinalizeMessage(decoder)
-        guard finalStatus == errSecSuccess else { throw PlutoError.keychain(finalStatus) }
-        var content: CFData?
-        let copyStatus = CMSDecoderCopyContent(decoder, &content)
-        guard copyStatus == errSecSuccess, let content else { throw PlutoError.keychain(copyStatus) }
-        guard let plist = try PropertyListSerialization.propertyList(from: content as Data, options: [], format: nil) as? [String: Any] else {
-            throw PlutoError.plist
-        }
-        return plist
-    }
-    static func info(_ data: Data) throws -> ProvisioningProfileInfo {
-        let plist = try decode(data)
-        let entitlements = plist["Entitlements"] as? [String: Any] ?? [:]
-        let appID = entitlements["application-identifier"] as? String ?? ""
-        let team = plist["TeamName"] as? String ?? ((plist["TeamIdentifier"] as? [String])?.first ?? "Unknown team")
-        guard let expiration = plist["ExpirationDate"] as? Date, !appID.isEmpty else { throw PlutoError.plist }
-        return ProvisioningProfileInfo(name: plist["Name"] as? String ?? "Provisioning Profile",
-                                        uuid: plist["UUID"] as? String ?? "Unknown",
-                                        team: team, applicationIdentifier: appID, expiration: expiration)
-    }
-    static func matches(bundleID: String, applicationIdentifier: String) -> Bool {
-        guard let dot = applicationIdentifier.firstIndex(of: ".") else { return false }
-        let appID = String(applicationIdentifier[applicationIdentifier.index(after: dot)...])
-        if appID == "*" { return true }
-        if appID.hasSuffix(".*") { return bundleID.hasPrefix(String(appID.dropLast())) }
-        return appID == bundleID
-    }
-}
 enum IPAService {
     static func safe(_ raw: String) -> String? {
         let value = raw.replacingOccurrences(of: "\\", with: "/")
@@ -376,12 +330,7 @@ enum IPAService {
         do {
             let dest = PlutoStorage.unique(url.lastPathComponent, in: PlutoStorage.profiles)
             try FileManager.default.copyItem(at: url, to: dest)
-            let data = try Data(contentsOf: dest)
-            var detail = "Profile imported, but metadata could not be read."
-            if let info = try? ProvisioningProfileInspector.info(data) {
-                let expiry = DateFormatter.localizedString(from: info.expiration, dateStyle: .medium, timeStyle: .short)
-                detail = "\(info.team) • \(info.applicationIdentifier) • Expires \(expiry)"
-            }
+            let detail = "Stored locally • Profile expiry, App ID, entitlements and certificate compatibility must be validated by the authorized macOS signing workflow."
             assets.insert(AssetRecord(name: dest.lastPathComponent, kind: "Provisioning Profile", path: dest.path, detail: detail), at: 0)
             log("Imported provisioning profile")
         } catch {
@@ -456,18 +405,9 @@ enum IPAService {
               FileManager.default.fileExists(atPath: profile.path) else {
             return "Select an imported provisioning profile."
         }
-        do {
-            let info = try ProvisioningProfileInspector.info(Data(contentsOf: URL(fileURLWithPath: profile.path)))
-            guard info.expiration > Date() else {
-                return "The selected profile expired on \(DateFormatter.localizedString(from: info.expiration, dateStyle: .medium, timeStyle: .short))."
-            }
-            guard ProvisioningProfileInspector.matches(bundleID: ipa.bundle, applicationIdentifier: info.applicationIdentifier) else {
-                return "Bundle ID mismatch. IPA: \(ipa.bundle). Profile App ID: \(info.applicationIdentifier)."
-            }
-            return "Local checks passed: a P12 identity is present, the profile is readable and unexpired, and its App ID matches this IPA. The macOS signing workflow must still verify certificate/profile pairing, entitlements, team authorization and the final signature."
-        } catch {
-            return "Profile metadata could not be read: \(error.localizedDescription)"
-        }
+        let ipaExists = FileManager.default.fileExists(atPath: ipa.path)
+        guard ipaExists else { return "The selected IPA file is missing. Re-import it from Files." }
+        return "Required inputs are selected: IPA, P12/PFX identity and provisioning profile. This is an import check only—not proof that the certificate and profile match. The authorized macOS signing workflow must validate profile expiry, bundle ID, entitlements, device/distribution type, certificate pairing and the final signature."
     }
 
     func signingRequest(_ ipa: IPARecord, _ cert: AssetRecord?, _ profile: AssetRecord?) throws -> URL {
