@@ -144,7 +144,7 @@ textarea.preview{font:11px/1.55 ui-monospace,SFMono-Regular,monospace;background
   <div class="card" id="robloxMonitor">
     <div class="row"><div class="iconbox">R</div><div class="grow"><div class="rowtitle">Roblox · Official App Store</div><div class="rowdetail" id="robloxStatus">Checking Apple's US App Store listing…</div></div><span class="badge" id="robloxVersionBadge">—</span></div>
     <p class="sub" id="robloxDetails" style="margin-top:10px">The latest published version will be compared with a Roblox IPA in your saved library.</p>
-    <div class="actions"><button class="primary smallbtn" id="checkRoblox">Check for Roblox updates</button><a class="secondary smallbtn" href="https://apps.apple.com/us/app/roblox/id431946152" target="_blank" rel="noopener noreferrer">Open official App Store</a><a class="secondary smallbtn" href="https://www.roblox.com/" target="_blank" rel="noopener noreferrer">Open Roblox.com</a></div>
+    <div class="actions"><button class="primary smallbtn" id="checkRoblox">Check for Roblox updates</button><button class="secondary smallbtn" id="viewRobloxFiles">View Roblox files</button><a class="secondary smallbtn" href="https://apps.apple.com/us/app/roblox/id431946152" target="_blank" rel="noopener noreferrer">Open official App Store</a><a class="secondary smallbtn" href="https://www.roblox.com/" target="_blank" rel="noopener noreferrer">Open Roblox.com</a></div>
     <div class="row" style="margin-top:10px"><span class="rowdetail" id="robloxCheckedAt">Automatic check when Pluto Sign opens; refreshes every 6 hours while open.</span></div>
   </div>
   <div class="sectionlabel">QUICK IMPORT</div>
@@ -153,7 +153,7 @@ textarea.preview{font:11px/1.55 ui-monospace,SFMono-Regular,monospace;background
     <p>On iPhone, this opens the iOS document picker. Select an .ipa package.</p>
     <button class="primary" id="homeImportIPA">Choose IPA files</button>
   </div>
-  <p class="hint" style="font-size:11px;margin:12px 2px 0">Imported IPA files are saved locally in this browser on this device and restored when you reopen Pluto Sign. Certificates and private keys remain session-only. Clearing browser website data or using another browser/device removes access to saved IPAs.</p>
+  <p class="hint" id="ipaStorageStatus" style="font-size:11px;margin:12px 2px 0">Preparing local IPA storage… Certificates and private keys remain session-only. Clearing browser website data or using another browser/device removes access to saved IPAs.</p>
 </section>
 
 <section class="view" id="ipas">
@@ -269,10 +269,20 @@ const IPA_DB_NAME="PlutoSignLocalFiles";
 function openIPADatabase(){
  return new Promise((resolve,reject)=>{
   if(!("indexedDB" in window)){reject(new Error("This browser does not support local IPA storage."));return;}
-  const request=indexedDB.open(IPA_DB_NAME,1);
+  const request=indexedDB.open(IPA_DB_NAME,2);
   request.onupgradeneeded=()=>{const db=request.result;if(!db.objectStoreNames.contains("ipas"))db.createObjectStore("ipas",{keyPath:"id"});};
-  request.onsuccess=()=>{state.ipaDB=request.result;if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().catch(()=>{});resolve(state.ipaDB);};
+  request.onsuccess=()=>{
+   state.ipaDB=request.result;
+   state.ipaDB.onversionchange=()=>{state.ipaDB.close();state.ipaDB=null;};
+   if(navigator.storage&&navigator.storage.persist)navigator.storage.persist().then(ok=>{
+    const status=$("ipaStorageStatus");
+    if(status&&ok)status.textContent="Persistent browser storage granted. IPA library is stored on this device.";
+    else if(status)status.textContent="Browser storage is best-effort. Export backups of important IPA files.";
+   }).catch(()=>{});
+   resolve(state.ipaDB);
+  };
   request.onerror=()=>reject(request.error||new Error("Could not open local IPA storage."));
+  request.onblocked=()=>reject(new Error("Local storage is blocked by another open Pluto Sign tab. Close the other tab and retry."));
  });
 }
 async function saveIPARecord(item,fromArchive){
@@ -282,13 +292,27 @@ async function saveIPARecord(item,fromArchive){
   const base=item.file.name.replace(/-Modified\.ipa$/i,"").replace(/\.ipa$/i,"");
   item.file=new File([blob],base+"-Modified.ipa",{type:"application/octet-stream",lastModified:Date.now()});
  }
+ const fileBlob=blob instanceof Blob?blob:new Blob([blob],{type:item.file.type||"application/octet-stream"});
+ const bytes=await fileBlob.arrayBuffer();
  const db=state.ipaDB||await openIPADatabase();
+ const savedAt=new Date().toISOString();
  await new Promise((resolve,reject)=>{
-  const tx=db.transaction("ipas","readwrite");
-  tx.objectStore("ipas").put({id:item.id,name:item.file.name,type:item.file.type||"application/octet-stream",lastModified:item.file.lastModified||Date.now(),blob:blob,modified:!!item.modified,app:item.app,bundle:item.bundle,version:item.version,build:item.build,savedAt:new Date().toISOString()});
-  tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error||new Error("Could not save IPA locally."));tx.onabort=()=>reject(tx.error||new Error("IPA storage transaction was interrupted."));
+  let tx;
+  try{tx=db.transaction("ipas","readwrite");}catch(err){reject(err);return;}
+  tx.objectStore("ipas").put({id:item.id,name:item.file.name,type:item.file.type||"application/octet-stream",lastModified:item.file.lastModified||Date.now(),data:bytes,size:bytes.byteLength,modified:!!item.modified,app:item.app,bundle:item.bundle,version:item.version,build:item.build,savedAt:savedAt});
+  tx.oncomplete=resolve;
+  tx.onerror=()=>reject(tx.error||new Error("Could not save IPA locally. Check available browser storage."));
+  tx.onabort=()=>reject(tx.error||new Error("IPA storage transaction was interrupted, possibly because the file exceeds available storage."));
  });
- item.saved=true;item.savedAt=new Date().toISOString();
+ const verify=await new Promise((resolve,reject)=>{
+  const tx=db.transaction("ipas","readonly"),request=tx.objectStore("ipas").get(item.id);
+  request.onsuccess=()=>resolve(request.result||null);
+  request.onerror=()=>reject(request.error||new Error("Saved IPA could not be verified."));
+ });
+ if(!verify||!verify.data||verify.data.byteLength!==bytes.byteLength)throw new Error("Saved IPA failed its read-back check. Browser storage may be full.");
+ item.saved=true;item.savedAt=savedAt;
+ const status=$("ipaStorageStatus");
+ if(status)status.textContent="Local IPA storage verified · "+sizeText(bytes.byteLength)+" saved on this device.";
 }
 async function removeSavedIPA(id){
  const db=state.ipaDB||await openIPADatabase();
@@ -302,22 +326,31 @@ async function loadSavedIPAs(){
   const db=state.ipaDB||await openIPADatabase();
   const saved=await new Promise((resolve,reject)=>{
    const tx=db.transaction("ipas","readonly"),request=tx.objectStore("ipas").getAll();
-   request.onsuccess=()=>resolve(request.result||[]);request.onerror=()=>reject(request.error||new Error("Could not read saved IPAs."));
+   request.onsuccess=()=>resolve(request.result||[]);
+   request.onerror=()=>reject(request.error||new Error("Could not read saved IPAs."));
   });
+  const problems=[];
   for(const entry of saved){
    try{
-    const file=new File([entry.blob],entry.name,{type:entry.type||"application/octet-stream",lastModified:entry.lastModified||Date.now()});
+    const source=entry.data?new Blob([entry.data],{type:entry.type||"application/octet-stream"}):entry.blob;
+    if(!source)throw new Error("No saved binary data found.");
+    const file=new File([source],entry.name,{type:entry.type||"application/octet-stream",lastModified:entry.lastModified||Date.now()});
     const zip=await JSZip.loadAsync(file,{checkCRC32:false});
     const names=Object.keys(zip.files).filter(n=>!zip.files[n].dir);
-    const infoPath=names.filter(n=>/^Payload\/[^/]+\.app\/Info\.plist$/.test(n)).sort((a,b)=>a.length-b.length)[0];
-    if(!infoPath)continue;
+    const infoPath=names.filter(n=>n.startsWith("Payload/")&&n.endsWith(".app/Info.plist")&&n.split("/").length===3).sort((a,b)=>a.length-b.length)[0];
+    if(!infoPath)throw new Error("Saved archive has no app Info.plist.");
     let meta={};try{meta=parsePlist(await zip.file(infoPath).async("arraybuffer"))||{};}catch(e){}
     if(!state.ipas.some(x=>x.id===entry.id))state.ipas.push({id:entry.id,file:file,zip:zip,names:names,modified:!!entry.modified,saved:true,savedAt:entry.savedAt,app:meta.CFBundleDisplayName||meta.CFBundleName||entry.app||file.name.replace(/\.ipa$/i,""),bundle:meta.CFBundleIdentifier||entry.bundle||"Metadata unavailable",version:meta.CFBundleShortVersionString||entry.version||"—",build:meta.CFBundleVersion||entry.build||"—",size:file.size});
-   }catch(err){console.warn("Could not restore saved IPA",entry.name,err);}
+   }catch(err){problems.push(entry.name+": "+err.message);console.warn("Could not restore saved IPA",entry.name,err);}
   }
   updateCounts();renderIPAs();refreshSigning();renderRobloxMonitor();
+  const status=$("ipaStorageStatus");
+  if(status)status.textContent=problems.length?"Restored "+state.ipas.length+" IPA(s); "+problems.length+" failed: "+problems[0]:"Local library ready · "+state.ipas.length+" saved IPA package(s).";
   if(saved.length)toast("Restored "+state.ipas.length+" saved IPA package(s) from this device.");
- }catch(err){$("home").querySelector(".hint").textContent="Local IPA storage is unavailable: "+err.message+" Packages will only remain until this page is closed.";}
+ }catch(err){
+  const status=$("ipaStorageStatus");if(status)status.textContent="Local IPA storage unavailable: "+err.message;
+  $("home").querySelector(".hint").textContent="Local IPA storage is unavailable: "+err.message;
+ }
 }
 function parseXMLPlist(text){
  const doc=new DOMParser().parseFromString(text,"application/xml");if(doc.querySelector("parsererror"))return null;
@@ -419,7 +452,7 @@ async function importIPAs(files){
     app:meta.CFBundleDisplayName||meta.CFBundleName||file.name.replace(/\.ipa$/i,""),
     bundle:meta.CFBundleIdentifier||"Metadata unavailable",version:meta.CFBundleShortVersionString||"—",build:meta.CFBundleVersion||"—",size:file.size};
    state.ipas.unshift(record);
-   try{await saveIPARecord(record,false);toast("Imported and saved on this device: "+record.app);}catch(storeError){record.saved=false;toast("Imported, but local save failed: "+storeError.message);}
+   try{await saveIPARecord(record,false);toast("Imported and verified saved copy: "+record.app);}catch(storeError){record.saved=false;toast("Import succeeded but save failed: "+storeError.message);}
   }catch(err){toast("Could not read "+file.name+": "+err.message);}
  }
  updateCounts();renderIPAs();refreshSigning();showTab("ipas");
@@ -744,19 +777,40 @@ $("exportCompatibility").addEventListener("click",()=>{
 const ROBLOX_APP_STORE_ID=431946152;
 const ROBLOX_BUNDLE_ID="com.roblox.robloxmobile";
 const ROBLOX_APP_STORE_URL="https://apps.apple.com/us/app/roblox/id431946152";
-function findRobloxIPA(){return state.ipas.find(x=>String(x.bundle||"").toLowerCase()===ROBLOX_BUNDLE_ID);}
-function renderRobloxMonitor(){
- const cached=state.robloxRelease;if(!cached)return;
- $("robloxVersionBadge").textContent="v"+cached.version;
- $("robloxCheckedAt").textContent="Last checked: "+new Date(cached.checkedAt).toLocaleString();
- const item=findRobloxIPA();
- if(!item){$("robloxDetails").textContent="Latest official App Store version: "+cached.version+". Import a Roblox IPA to compare its version.";return;}
- const cmp=compareVersions(item.version,cached.version);
- if(cmp===null)$("robloxDetails").textContent="Latest App Store version: "+cached.version+". Imported Roblox IPA version could not be compared.";
- else if(cmp<0)$("robloxDetails").textContent="Update available. Your saved IPA is "+item.version+"; the official App Store release is "+cached.version+".";
- else if(cmp===0)$("robloxDetails").textContent="Your saved Roblox IPA matches the official App Store version "+cached.version+".";
- else $("robloxDetails").textContent="Your saved IPA version "+item.version+" is ahead of the App Store listing "+cached.version+". Confirm its source.";
+function savedRobloxIPAs(){
+ return state.ipas.filter(x=>String(x.bundle||"").toLowerCase()===ROBLOX_BUNDLE_ID).sort((a,b)=>{
+  const cmp=compareVersions(b.version,a.version);return cmp===null?0:cmp;
+ });
 }
+function findRobloxIPA(){return savedRobloxIPAs()[0]||null;}
+function renderRobloxMonitor(){
+ const cached=state.robloxRelease,item=findRobloxIPA(),versions=savedRobloxIPAs();
+ $("viewRobloxFiles").disabled=!item;
+ if(cached){
+  $("robloxVersionBadge").textContent="v"+cached.version;
+  $("robloxCheckedAt").textContent="Last checked: "+new Date(cached.checkedAt).toLocaleString();
+ }
+ if(!cached){
+  $("robloxDetails").textContent=item?"Saved Roblox IPA: v"+item.version+". Check the App Store to compare it with the official release.":"No Roblox IPA saved yet. Check the App Store, then import your Roblox IPA.";
+  return;
+ }
+ if(!item){
+  $("robloxDetails").textContent="Latest official App Store version: "+cached.version+". No Roblox IPA is saved yet.";
+  return;
+ }
+ const cmp=compareVersions(item.version,cached.version);
+ const history=versions.length+" saved Roblox version"+(versions.length===1?"":"s")+". Older imported packages stay saved separately.";
+ if(cmp===null)$("robloxDetails").textContent="Latest App Store version: "+cached.version+". Saved IPA version could not be compared. "+history;
+ else if(cmp<0)$("robloxDetails").textContent="Update available. Saved IPA: "+item.version+" · App Store: "+cached.version+". Update Roblox through the App Store, then import its new IPA to browse that package. The old copy stays unchanged. "+history;
+ else if(cmp===0)$("robloxDetails").textContent="Your saved Roblox IPA matches the official App Store version "+cached.version+". "+history;
+ else $("robloxDetails").textContent="Your saved IPA version "+item.version+" is ahead of the App Store listing "+cached.version+". Confirm its source. "+history;
+}
+function openLatestRobloxFiles(){
+ const item=findRobloxIPA();if(!item){toast("Import a Roblox IPA first.");return;}
+ openArchive(item.id);openMainAppFolder();
+}
+$("viewRobloxFiles").addEventListener("click",openLatestRobloxFiles);
+
 function lookupRobloxJSONP(){
  return new Promise((resolve,reject)=>{
   const callback="__plutoRobloxLookup_"+Date.now()+"_"+Math.random().toString(36).slice(2);
