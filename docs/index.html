@@ -94,6 +94,21 @@ textarea.preview{font:11px/1.55 ui-monospace,SFMono-Regular,monospace;background
 .dataTable{width:100%;border-collapse:collapse;font-size:11px;margin-top:8px}
 .dataTable th,.dataTable td{text-align:left;padding:8px;border-bottom:1px solid var(--line);vertical-align:top;overflow-wrap:anywhere}
 .dataTable th{color:#d9baff;font-weight:800}
+#compatPanel .compat-top{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}
+#compatPanel .compat-stat{background:#ffffff08;border:1px solid var(--line);border-radius:12px;padding:11px;min-width:0}
+#compatPanel .compat-stat strong{display:block;font-size:19px;margin-bottom:3px}
+#compatPanel .compat-stat span{font-size:10px;color:var(--muted)}
+#compatPanel details{margin-top:12px;border:1px solid var(--line);border-radius:12px;padding:11px;background:#ffffff06}
+#compatPanel summary{cursor:pointer;font-size:12px;font-weight:800;color:#e7d6ff}
+#compatPanel .compat-findings{display:grid;gap:8px;margin-top:10px}
+#compatPanel .compat-finding{padding:10px;border-radius:10px;background:#ffffff06;border:1px solid var(--line)}
+#compatPanel .compat-finding p{margin:5px 0 0;font-size:11px;color:var(--muted)}
+#archivePanel.compat-mode #archiveBrowser{display:none}
+#filePreview{margin:12px 0;max-height:65vh;overflow:auto}
+#filePreview pre{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font:11px/1.55 ui-monospace,SFMono-Regular,monospace}
+#filePreview img{display:block;max-width:100%;max-height:60vh;object-fit:contain;margin:10px auto;border-radius:10px}
+.filepreview-head{font-size:12px;font-weight:800;color:#e7d6ff;margin-bottom:7px;overflow-wrap:anywhere}
+@media(max-width:620px){#compatPanel .compat-top{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .offset{font:11px ui-monospace,SFMono-Regular,monospace;color:#e7d6ff}
 .toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);padding:12px 16px;background:#34224d;border:1px solid #ffffff30;border-radius:12px;box-shadow:0 10px 32px #0008;font-size:12px;z-index:20;display:none;max-width:90vw}
 @media(max-width:620px){.shell{padding:14px 12px 95px}.hero{padding:19px}.grid{grid-template-columns:1fr}.viewhead{align-items:flex-start;flex-direction:column}.stats{gap:7px}.stat{padding:12px}.stat strong{font-size:21px}.tabs{margin:0 -2px}.top{margin-bottom:13px}}
@@ -193,10 +208,12 @@ textarea.preview{font:11px/1.55 ui-monospace,SFMono-Regular,monospace;background
       <div id="compatResults" style="margin-top:12px"></div>
       <div class="callout" style="margin-top:12px">This is a static IPA package review only. It does not inspect live memory, calculate or update runtime offsets, patch executables, inject code or change the imported IPA.</div>
     </div>
-    <input class="search" id="archiveSearch" type="search" placeholder="Search archive file paths…" style="margin-top:12px">
-    <div class="breadcrumb" id="breadcrumbs"></div>
-    <div id="archiveList"></div>
-    <pre class="preview" id="filePreview" hidden></pre>
+    <div id="archiveBrowser">
+      <input class="search" id="archiveSearch" type="search" placeholder="Search archive file paths…" style="margin-top:12px">
+      <div class="breadcrumb" id="breadcrumbs"></div>
+      <div id="filePreview" class="preview" hidden></div>
+      <div id="archiveList"></div>
+    </div>
   </div>
 </section>
 
@@ -468,11 +485,11 @@ function renderIPAs(){
 function downloadBlob(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);}
 function downloadIPA(id){const x=byId(id);if(!x)return;if(x.modified){exportModifiedIPA(x);return;}downloadBlob(x.file,x.file.name);}
 function openArchive(id){const x=byId(id);if(!x)return;state.archiveId=id;state.archiveZip=x.zip;state.archiveNames=x.names;state.archivePath="";$("archivePanel").hidden=false;$("archiveTitle").textContent=x.app;$("archiveSubtitle").textContent=x.file.name+" · "+x.names.length+" files";$("archiveSearch").value="";$("filePreview").hidden=true;renderArchive();$("archivePanel").scrollIntoView({behavior:"smooth",block:"start"});}
-function closeArchive(){state.archiveId=null;state.archiveZip=null;$("archivePanel").hidden=true;$("plistEditor").hidden=true;$("dylibPanel").hidden=true;$("compatPanel").hidden=true;state.compatReport=null;}
+function closeArchive(){state.archiveId=null;state.archiveZip=null;$("archivePanel").hidden=true;$("plistEditor").hidden=true;$("dylibPanel").hidden=true;$("compatPanel").hidden=true;$("archivePanel").classList.remove("compat-mode");state.compatReport=null;}
 $("closeArchive").addEventListener("click",closeArchive);
 $("closePlist").addEventListener("click",()=>{$("plistEditor").hidden=true;});
 $("closeDylibs").addEventListener("click",()=>{$("dylibPanel").hidden=true;});
-$("closeCompat").addEventListener("click",()=>{$("compatPanel").hidden=true;});
+$("closeCompat").addEventListener("click",()=>{$("compatPanel").hidden=true;$("archivePanel").classList.remove("compat-mode");});
 function currentArchive(){return byId(state.archiveId);}
 async function editMainInfoPlist(){
  const item=currentArchive();if(!item)return;
@@ -690,11 +707,27 @@ function renderCompatibilityReport(report){
  state.compatReport=report;
  $("exportCompatibility").disabled=false;
  const target=report.target,reference=report.reference;
- const issueCount=report.findings.filter(x=>x.level==="warn").length;
- $("compatSummary").innerHTML='<div class="row" style="flex-wrap:wrap"><span class="badge '+(issueCount?"warn":"good")+'">'+(issueCount?issueCount+" item(s) to review":"No architecture warnings found")+'</span><span class="badge">App '+escapeHTML(target.version)+' · build '+escapeHTML(target.build)+'</span>'+(reference?'<span class="badge">Compared with '+escapeHTML(reference.version)+' · build '+escapeHTML(reference.build)+'</span>':'<span class="badge">No reference package selected</span>')+'</div>'+
- '<div class="grid" style="margin-top:10px"><div class="card"><div class="sectionlabel">APP PACKAGE</div><div class="rowtitle">'+escapeHTML(target.app)+'</div><div class="rowdetail">'+escapeHTML(target.bundle)+'</div><div class="rowdetail">Minimum iOS: '+escapeHTML(target.minimumOS)+' · Executable: '+escapeHTML(target.executable)+'</div><div class="rowdetail">Architectures: '+escapeHTML(target.architectures.join(", ")||"Unavailable")+'</div></div><div class="card"><div class="sectionlabel">EMBEDDED LIBRARIES</div><div class="rowtitle">'+target.libraries.length+'</div><div class="rowdetail">Dylib and framework binaries inspected</div></div></div>';
- let rows=report.findings.map(f=>'<tr><td>'+escapeHTML(f.item)+'</td><td><span class="badge '+(f.level==="warn"?"warn":"")+'">'+escapeHTML(f.status)+'</span></td><td>'+escapeHTML(f.detail)+'</td></tr>').join("");
- $("compatResults").innerHTML=report.findings.length?'<table class="dataTable"><thead><tr><th>Component</th><th>Result</th><th>Details</th></tr></thead><tbody>'+rows+'</tbody></table>':'<div class="empty">No compatibility findings were produced.</div>';
+ const warnings=report.findings.filter(x=>x.level==="warn");
+ const informational=report.findings.filter(x=>x.level!=="warn");
+ const cmp=reference&&target.bundle===reference.bundle?compareVersions(target.version,reference.version):null;
+ const appStatus=reference?(target.bundle!==reference.bundle?"Different app":cmp===null?"Not comparable":cmp<0?"Behind reference":cmp===0?"Matches reference":"Ahead of reference"):"No reference";
+ const status=warnings.length?"Review recommended":"No static warnings";
+ $("compatSummary").innerHTML=
+  '<div class="row" style="flex-wrap:wrap"><span class="badge '+(warnings.length?"warn":"good")+'">'+status+'</span><span class="badge">v'+escapeHTML(target.version)+' · build '+escapeHTML(target.build)+'</span></div>'+
+  '<div class="compat-top">'+
+   '<div class="compat-stat"><strong>'+warnings.length+'</strong><span>Items to review</span></div>'+
+   '<div class="compat-stat"><strong>'+target.libraries.length+'</strong><span>Libraries found</span></div>'+
+   '<div class="compat-stat"><strong>'+escapeHTML(appStatus)+'</strong><span>Version comparison</span></div>'+
+  '</div>'+
+  '<div class="row" style="margin-top:10px;flex-wrap:wrap"><span class="rowdetail">App: '+escapeHTML(target.app)+'</span><span class="rowdetail">· '+escapeHTML(target.architectures.join(", ")||"Architecture unavailable")+'</span><span class="rowdetail">· Minimum iOS '+escapeHTML(target.minimumOS)+'</span></div>'+
+  (reference&&target.bundle!==reference.bundle?'<div class="callout" style="margin-top:10px">The reference IPA has a different bundle ID, so version comparisons were skipped.</div>':'');
+ const ordered=warnings.concat(informational);
+ const findingHTML=ordered.map(f=>
+  '<article class="compat-finding"><div class="row" style="flex-wrap:wrap"><strong class="grow" style="font-size:12px">'+escapeHTML(f.item)+'</strong><span class="badge '+(f.level==="warn"?"warn":"")+'">'+escapeHTML(f.status)+'</span></div><p>'+escapeHTML(f.detail)+'</p></article>'
+ ).join("");
+ $("compatResults").innerHTML=ordered.length?
+  '<details><summary>View all '+ordered.length+' findings ('+warnings.length+' need review)</summary><div class="compat-findings">'+findingHTML+'</div></details>':
+  '<div class="successbox" style="margin-top:12px">No compatibility findings were produced by the available static checks.</div>';
 }
 async function runCompatibility(){
  const item=currentArchive();if(!item)return;
@@ -761,7 +794,7 @@ async function runCompatibility(){
 }
 $("checkCompatibility").addEventListener("click",()=>{
  const item=currentArchive();if(!item)return;
- $("compatPanel").hidden=false;$("dylibPanel").hidden=true;$("plistEditor").hidden=true;
+ $("compatPanel").hidden=false;$("archivePanel").classList.add("compat-mode");$("dylibPanel").hidden=true;$("plistEditor").hidden=true;
  const options=state.ipas.filter(x=>x.id!==item.id);
  $("compatReference").innerHTML='<option value="">Run package checks only</option>'+options.map(x=>'<option value="'+x.id+'">'+escapeHTML(x.app+" · "+x.version+" · "+x.file.name)+'</option>').join("");
  $("compatSummary").innerHTML="";$("compatResults").innerHTML="";$("exportCompatibility").disabled=true;state.compatReport=null;
@@ -861,7 +894,7 @@ function openMainAppFolder(){
  $("filePreview").hidden=true;
  $("plistEditor").hidden=true;
  $("dylibPanel").hidden=true;
- $("compatPanel").hidden=true;
+ $("compatPanel").hidden=true;$("archivePanel").classList.remove("compat-mode");
  renderArchive();
  const isRoblox=String(item.bundle||"").toLowerCase()==="com.roblox.robloxmobile";
  toast(isRoblox?"Opened Roblox app folder contents.":"Opened app bundle contents.");
@@ -883,12 +916,46 @@ function renderArchive(){
  $("archiveList").querySelectorAll("[data-entry]").forEach(b=>b.addEventListener("click",()=>{if(b.dataset.folder==="true"){state.archivePath=b.dataset.entry;renderArchive();}else previewEntry(b.dataset.entry);}));
 }
 $("archiveSearch").addEventListener("input",renderArchive);
+let archivePreviewURL=null;
 async function previewEntry(path){
- const x=byId(state.archiveId);if(!x)return;const entry=x.zip.file(path),out=$("filePreview");if(!entry)return;
- const ext=path.split(".").pop().toLowerCase();
- if(["txt","json","xml","plist","strings","md","csv","html","css","js"].includes(ext)){
-  try{let text=await entry.async("string");if(ext==="plist"){const meta=parseXMLPlist(text);if(meta)text=JSON.stringify(meta,null,2);}out.textContent=text.slice(0,120000);out.hidden=false;}catch(e){toast("Could not preview this file.");}
- }else{out.textContent="This looks like a binary or unsupported file. It is listed in the IPA archive but no text preview is available.";out.hidden=false;}
+ const item=currentArchive(),out=$("filePreview");
+ if(!item||!out)return;
+ const entry=item.zip.file(path);if(!entry)return;
+ if(archivePreviewURL){URL.revokeObjectURL(archivePreviewURL);archivePreviewURL=null;}
+ out.replaceChildren();out.hidden=false;
+ const heading=document.createElement("div");heading.className="filepreview-head";heading.textContent=path;out.appendChild(heading);
+ const ext=(path.split(".").pop()||"").toLowerCase();
+ try{
+  const imageTypes={png:"image/png",jpg:"image/jpeg",jpeg:"image/jpeg",gif:"image/gif",webp:"image/webp",bmp:"image/bmp",heic:"image/heic"};
+  if(imageTypes[ext]){
+   const blob=await entry.async("blob");
+   archivePreviewURL=URL.createObjectURL(new Blob([blob],{type:imageTypes[ext]}));
+   const img=document.createElement("img");img.alt="Preview of "+path;img.src=archivePreviewURL;out.appendChild(img);
+   const note=document.createElement("div");note.className="rowdetail";note.textContent=sizeText(blob.size)+" · image preview";out.appendChild(note);
+  }else if(["txt","json","xml","plist","strings","md","csv","html","css","js","yaml","yml","ini","cfg","conf","log","entitlements"].includes(ext)){
+   if(entry._data&&entry._data.uncompressedSize>4*1024*1024)throw new Error("This text file exceeds the 4 MB preview limit.");
+   let text;
+   if(ext==="plist"){
+    const buffer=await entry.async("arraybuffer");
+    const value=parsePlistFull(buffer);
+    text=JSON.stringify(value,null,2);
+   }else if(ext==="json"){
+    const raw=await entry.async("string");
+    try{text=JSON.stringify(JSON.parse(raw),null,2);}catch(e){text=raw;}
+   }else text=await entry.async("string");
+   const pre=document.createElement("pre");pre.textContent=text.slice(0,150000);
+   if(text.length>150000)pre.textContent+="\n\n[Preview truncated at 150,000 characters.]";
+   out.appendChild(pre);
+   const note=document.createElement("div");note.className="rowdetail";note.textContent=sizeText(text.length)+" · text preview";out.appendChild(note);
+  }else{
+   const message=document.createElement("div");message.className="callout";
+   message.textContent="This is a binary or executable file ("+sizeText(entry._data&&entry._data.uncompressedSize||0)+"). Pluto Sign can list the file and preview supported assets, but it does not display or disassemble executable code.";
+   out.appendChild(message);
+  }
+ }catch(err){
+  const message=document.createElement("div");message.className="callout";message.textContent="Could not preview this file: "+err.message;out.appendChild(message);
+ }
+ out.scrollIntoView({behavior:"smooth",block:"nearest"});
 }
 $("ipaSearch").addEventListener("input",renderIPAs);
 function routeFile(file){
