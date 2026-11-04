@@ -202,7 +202,7 @@ textarea.preview{font:11px/1.55 ui-monospace,SFMono-Regular,monospace;background
       <div class="card" id="bulkOffsetsPanel" hidden style="margin-top:12px">
         <div class="row"><div class="grow"><h3>Bulk Offset Notes</h3><p class="sub">Select and organize multiple static file-offset entries</p></div><span class="badge">Read-only offsets</span></div>
         <p class="hint" style="font-size:11px;line-height:1.5;margin:9px 0">The numeric file offsets and sizes are locked. You can edit labels and notes, then copy or export selected entries. These annotations never alter the IPA binary.</p>
-        <div class="actions"><button class="quiet smallbtn" id="bulkOffsetSelectAll">Select all</button><button class="secondary smallbtn" id="bulkOffsetClear">Clear</button><button class="primary smallbtn" id="bulkOffsetCopy" disabled>Copy selected</button><button class="secondary smallbtn" id="bulkOffsetExport" disabled>Export selected JSON</button><span id="bulkOffsetCount" class="rowdetail">0 selected</span></div>
+        <div class="actions"><button class="quiet smallbtn" id="bulkOffsetSelectAll">Select all</button><button class="secondary smallbtn" id="bulkOffsetClear">Clear</button><button class="primary smallbtn" id="bulkOffsetCopy" disabled>Copy selected</button><button class="secondary smallbtn" id="bulkOffsetNotes" disabled>Save to Apple Notes</button><button class="secondary smallbtn" id="bulkOffsetExport" disabled>Export selected JSON</button><span id="bulkOffsetCount" class="rowdetail">0 selected</span></div>
         <div id="bulkOffsetList" class="bulk-offset-list"></div>
       </div>
       <div class="callout" style="margin-top:12px">Offsets shown here are locations inside the stored binary file, not live process addresses. This inspector is read-only and does not patch, inject or modify executable code.</div>
@@ -646,6 +646,7 @@ function updateBulkOffsetCount(){
  const count=bulkOffsetSelected.size;
  $("bulkOffsetCount").textContent=count+" selected of "+bulkOffsetEntries.length;
  $("bulkOffsetCopy").disabled=count===0;
+ $("bulkOffsetNotes").disabled=count===0;
  $("bulkOffsetExport").disabled=count===0;
 }
 function renderBulkOffsetEntries(){
@@ -695,6 +696,54 @@ async function copyBulkOffsets(){
  field.remove();
  toast(copied?selected.length+" file-offset entries copied.":"Clipboard access is unavailable in this browser.");
 }
+async function saveBulkOffsetsToAppleNotes(){
+ const selected=getSelectedBulkOffsets();
+ if(!selected.length){toast("Select at least one entry first.");return;}
+ const item=currentArchive();
+ const lines=[
+  "PLUTO SIGN — STATIC IPA FILE-OFFSET NOTES",
+  "App: "+(item?item.app:"Unknown IPA"),
+  "Version: "+(item?item.version:"Unknown"),
+  "Saved: "+new Date().toLocaleString(),
+  "",
+  "These are static file offsets inside the stored binary, not live memory addresses."
+ ];
+ selected.forEach((entry,index)=>{
+  lines.push("");
+  lines.push((index+1)+". "+(entry.label||entry.name));
+  lines.push("Name: "+entry.name);
+  lines.push("Type: "+entry.kind+" · Architecture: "+entry.architecture);
+  lines.push("File: "+entry.sourcePath);
+  lines.push("File offset: "+entry.fileOffset);
+  lines.push("File size: "+entry.fileSize);
+  if(entry.note)lines.push("Note: "+entry.note);
+ });
+ const noteText=lines.join("\n");
+ if(navigator.share){
+  try{
+   await navigator.share({title:"Pluto Sign Offset Notes",text:noteText});
+   toast("Share sheet closed. Choose Notes and save the note there if you have not already.");
+   return;
+  }catch(error){
+   if(error&&error.name==="AbortError")return;
+   toast("Could not open the iOS share sheet. Copying note text instead.");
+  }
+ }
+ try{
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+   await navigator.clipboard.writeText(noteText);
+   toast("Offset notes copied. Open Apple Notes and paste them into a new note.");
+   return;
+  }
+ }catch(error){}
+ const field=document.createElement("textarea");
+ field.value=noteText;field.setAttribute("readonly","");field.style.position="fixed";field.style.opacity="0";field.style.left="-9999px";
+ document.body.appendChild(field);field.focus();field.select();field.setSelectionRange(0,field.value.length);
+ let copied=false;try{copied=document.execCommand("copy");}catch(error){}
+ field.remove();
+ toast(copied?"Offset notes copied. Paste them into Apple Notes.":"Sharing and clipboard are unavailable in this browser.");
+}
+$("bulkOffsetNotes").addEventListener("click",saveBulkOffsetsToAppleNotes);
 function exportBulkOffsets(){
  const selected=getSelectedBulkOffsets();
  if(!selected.length){toast("Select at least one entry first.");return;}
