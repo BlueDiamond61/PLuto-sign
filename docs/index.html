@@ -109,7 +109,7 @@ textarea.preview{font:11px/1.55 ui-monospace,SFMono-Regular,monospace;background
 #filePreview img{display:block;max-width:100%;max-height:60vh;object-fit:contain;margin:10px auto;border-radius:10px}.multi-window-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px}.multi-pane{min-width:0;border:1px solid #ffffff20;border-radius:15px;padding:12px;background:#100b1d}.multi-pane h4{font-size:13px;margin:0 0 8px;color:#eadcff}.multi-pane .search{margin:8px 0}.multi-pane-list{max-height:42vh;min-height:150px;overflow:auto;border:1px solid var(--line);border-radius:11px;background:#090611}.multi-pane .archiveitem{padding:9px;gap:7px}.multi-pane .archiveitem button{flex-shrink:0}.multi-pane-preview{margin-top:9px;max-height:36vh;overflow:auto}.multi-pane-preview img{display:block;max-width:100%;max-height:32vh;object-fit:contain;margin:8px auto;border-radius:9px}@media(max-width:700px){.multi-window-grid{grid-template-columns:minmax(260px,86vw) minmax(260px,86vw);overflow-x:auto;padding-bottom:8px;scroll-snap-type:x mandatory}.multi-pane{scroll-snap-align:start}.multi-pane-list{max-height:45vh}}
 .filepreview-head{font-size:12px;font-weight:800;color:#e7d6ff;margin-bottom:7px;overflow-wrap:anywhere}.preview-text{display:block;width:100%;min-height:230px;max-height:58vh;resize:vertical;white-space:pre;overflow:auto;user-select:text;-webkit-user-select:text;touch-action:pan-y;font:12px/1.55 ui-monospace,SFMono-Regular,monospace;color:#f7f1ff;background:#090611;border:1px solid var(--line);border-radius:10px;padding:12px}
 @media(max-width:620px){#compatPanel .compat-top{grid-template-columns:repeat(2,minmax(0,1fr))}}
-.bulk-offset-list{display:grid;gap:8px;margin-top:10px}.bulk-offset-row{display:grid;grid-template-columns:24px minmax(130px,1.2fr) minmax(120px,1fr) minmax(150px,1fr);gap:9px;align-items:center;padding:10px;border:1px solid var(--line);border-radius:11px;background:#ffffff06}.bulk-offset-row.selected{background:#9b6cff18}.bulk-offset-row input[type=checkbox]{width:18px;height:18px;accent-color:#a77afa}.bulk-offset-row label{display:grid;gap:4px;font-size:10px;color:var(--muted)}.bulk-offset-row input[type=text]{width:100%;min-width:0;border:1px solid var(--line);border-radius:8px;background:#090611;color:#f7f1ff;padding:8px;font-size:11px}.bulk-offset-meta{min-width:0;overflow-wrap:anywhere}.bulk-offset-meta .rowdetail{margin-top:3px}@media(max-width:680px){.bulk-offset-row{grid-template-columns:24px minmax(0,1fr);align-items:start}.bulk-offset-row .bulk-offset-edit{grid-column:2;display:grid;grid-template-columns:1fr;gap:7px}}\n.offset{font:11px ui-monospace,SFMono-Regular,monospace;color:#e7d6ff}
+.bulk-offset-list{display:grid;gap:8px;margin-top:10px}.bulk-offset-row{display:grid;grid-template-columns:24px minmax(130px,1.2fr) minmax(120px,1fr) minmax(150px,1fr);gap:9px;align-items:center;padding:10px;border:1px solid var(--line);border-radius:11px;background:#ffffff06}.bulk-offset-row.selected{background:#9b6cff18}.bulk-offset-row input[type=checkbox]{width:18px;height:18px;accent-color:#a77afa}.bulk-offset-row label{display:grid;gap:4px;font-size:10px;color:var(--muted)}.bulk-offset-row input[type=text]{width:100%;min-width:0;border:1px solid var(--line);border-radius:8px;background:#090611;color:#f7f1ff;padding:8px;font-size:11px}.bulk-offset-meta{min-width:0;overflow-wrap:anywhere}.bulk-offset-meta .rowdetail{margin-top:3px}@media(max-width:680px){.bulk-offset-row{grid-template-columns:24px minmax(0,1fr);align-items:start}.bulk-offset-row .bulk-offset-edit{grid-column:2;display:grid;grid-template-columns:1fr;gap:7px}}\n.manual-offset-list{display:grid;gap:10px;margin-top:10px}.manual-offset-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:11px;border:1px solid var(--line);border-radius:12px;background:#ffffff06}.manual-offset-row label{display:grid;gap:4px;font-size:10px;color:var(--muted)}.manual-offset-row input,.manual-offset-row textarea{width:100%;min-width:0;border:1px solid var(--line);border-radius:8px;background:#090611;color:#f7f1ff;padding:8px;font-size:11px}.manual-offset-row textarea{min-height:54px;resize:vertical}.manual-offset-row .manual-offset-wide{grid-column:1/-1}.manual-offset-row .manual-offset-actions{display:flex;justify-content:flex-end;grid-column:1/-1}@media(max-width:620px){.manual-offset-row{grid-template-columns:minmax(0,1fr)}}\n.offset{font:11px ui-monospace,SFMono-Regular,monospace;color:#e7d6ff}
 .toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);padding:12px 16px;background:#34224d;border:1px solid #ffffff30;border-radius:12px;box-shadow:0 10px 32px #0008;font-size:12px;z-index:20;display:none;max-width:90vw}
 @media(max-width:620px){.shell{padding:14px 12px 95px}.hero{padding:19px}.grid{grid-template-columns:1fr}.viewhead{align-items:flex-start;flex-direction:column}.stats{gap:7px}.stat{padding:12px}.stat strong{font-size:21px}.tabs{margin:0 -2px}.top{margin-bottom:13px}}
 </style>
@@ -204,6 +204,13 @@ textarea.preview{font:11px/1.55 ui-monospace,SFMono-Regular,monospace;background
         <p class="hint" style="font-size:11px;line-height:1.5;margin:9px 0">The numeric file offsets and sizes are locked. You can edit labels and notes, then copy or export selected entries. These annotations never alter the IPA binary.</p>
         <div class="actions"><button class="quiet smallbtn" id="bulkOffsetSelectAll">Select all</button><button class="secondary smallbtn" id="bulkOffsetClear">Clear</button><button class="primary smallbtn" id="bulkOffsetCopy" disabled>Copy selected</button><button class="secondary smallbtn" id="bulkOffsetNotes" disabled>Save to Apple Notes</button><button class="secondary smallbtn" id="bulkOffsetExport" disabled>Export selected JSON</button><span id="bulkOffsetCount" class="rowdetail">0 selected</span></div>
         <div id="bulkOffsetList" class="bulk-offset-list"></div>
+        <div class="divider" style="margin:16px 0;border-top:1px solid var(--line)"></div>
+        <div id="manualOffsetEditor">
+          <div class="row"><div class="grow"><h3>Manual Offset Reference Editor</h3><p class="sub">Create and edit your own reference records</p></div><span class="badge">Local notes</span></div>
+          <p class="hint" style="font-size:11px;line-height:1.5;margin:8px 0">Enter reference values manually and organize them by library, architecture, and version. Records are saved in this browser only; they are not written into or applied to IPA binaries.</p>
+          <div class="actions"><button class="primary smallbtn" id="manualOffsetAdd">＋ Add reference</button><button class="secondary smallbtn" id="manualOffsetImport">Import JSON</button><button class="secondary smallbtn" id="manualOffsetExport">Export JSON</button><input id="manualOffsetImportFile" type="file" accept="application/json,.json" hidden></div>
+          <div id="manualOffsetList" class="manual-offset-list"><div class="empty">No manual reference records yet. Tap Add reference to create one.</div></div>
+        </div>
       </div>
       <div class="callout" style="margin-top:12px">Offsets shown here are locations inside the stored binary file, not live process addresses. This inspector is read-only and does not patch, inject or modify executable code.</div>
     </div>
@@ -774,6 +781,104 @@ function buildBulkOffsetEntries(path,slices){
  });
  return entries;
 }
+const MANUAL_OFFSET_STORAGE_KEY="plutoSignManualOffsetReferences.v1";
+let manualOffsetReferences=[];
+function loadManualOffsetReferences(){
+ try{
+  const parsed=JSON.parse(localStorage.getItem(MANUAL_OFFSET_STORAGE_KEY)||"[]");
+  if(Array.isArray(parsed))manualOffsetReferences=parsed.slice(0,1000).map((entry,index)=>({
+   id:String(entry.id||("manual-"+index)),
+   label:String(entry.label||""),
+   library:String(entry.library||""),
+   architecture:String(entry.architecture||""),
+   version:String(entry.version||""),
+   value:String(entry.value||""),
+   note:String(entry.note||"")
+  }));
+ }catch(error){manualOffsetReferences=[];}
+}
+function saveManualOffsetReferences(){
+ try{
+  localStorage.setItem(MANUAL_OFFSET_STORAGE_KEY,JSON.stringify(manualOffsetReferences));
+ }catch(error){toast("Could not save reference records in this browser. Export a JSON backup.");}
+}
+function renderManualOffsetReferences(){
+ const target=$("manualOffsetList");if(!target)return;
+ if(!manualOffsetReferences.length){
+  target.innerHTML='<div class="empty">No manual reference records yet. Tap Add reference to create one.</div>';
+  return;
+ }
+ target.innerHTML=manualOffsetReferences.map(entry=>
+  '<div class="manual-offset-row" data-manual-record="'+escapeHTML(entry.id)+'">'+
+   '<label>Label<input type="text" maxlength="120" data-manual-field="label" value="'+escapeHTML(entry.label)+'" placeholder="e.g. My reference"></label>'+
+   '<label>Library / component<input type="text" maxlength="180" data-manual-field="library" value="'+escapeHTML(entry.library)+'" placeholder="Library or component name"></label>'+
+   '<label>Architecture<input type="text" maxlength="40" data-manual-field="architecture" value="'+escapeHTML(entry.architecture)+'" placeholder="e.g. arm64"></label>'+
+   '<label>Version<input type="text" maxlength="60" data-manual-field="version" value="'+escapeHTML(entry.version)+'" placeholder="App or library version"></label>'+
+   '<label class="manual-offset-wide">Manual reference value<input type="text" maxlength="160" data-manual-field="value" value="'+escapeHTML(entry.value)+'" placeholder="Enter your own reference value"></label>'+
+   '<label class="manual-offset-wide">Notes<textarea maxlength="1000" data-manual-field="note" placeholder="Optional notes">'+escapeHTML(entry.note)+'</textarea></label>'+
+   '<div class="manual-offset-actions"><button class="danger smallbtn" type="button" data-manual-delete="'+escapeHTML(entry.id)+'">Delete record</button></div>'+
+  '</div>'
+ ).join("");
+}
+function addManualOffsetReference(){
+ manualOffsetReferences.push({id:"manual-"+Date.now()+"-"+Math.random().toString(36).slice(2,8),label:"",library:"",architecture:"arm64",version:"",value:"",note:""});
+ saveManualOffsetReferences();
+ renderManualOffsetReferences();
+ const rows=$("manualOffsetList").querySelectorAll(".manual-offset-row");
+ if(rows.length)rows[rows.length-1].scrollIntoView({behavior:"smooth",block:"nearest"});
+}
+$("manualOffsetAdd").addEventListener("click",addManualOffsetReference);
+$("manualOffsetList").addEventListener("input",event=>{
+ const field=event.target.closest("[data-manual-field]");
+ const row=event.target.closest("[data-manual-record]");
+ if(!field||!row)return;
+ const record=manualOffsetReferences.find(entry=>entry.id===row.dataset.manualRecord);
+ if(!record)return;
+ record[field.dataset.manualField]=field.value;
+ saveManualOffsetReferences();
+});
+$("manualOffsetList").addEventListener("click",event=>{
+ const button=event.target.closest("[data-manual-delete]");
+ if(!button)return;
+ const id=button.dataset.manualDelete;
+ manualOffsetReferences=manualOffsetReferences.filter(entry=>entry.id!==id);
+ saveManualOffsetReferences();
+ renderManualOffsetReferences();
+ toast("Manual reference record deleted. IPA contents were not changed.");
+});
+$("manualOffsetExport").addEventListener("click",()=>{
+ const payload={format:"Pluto Sign manual offset reference records",savedAt:new Date().toISOString(),entries:manualOffsetReferences};
+ downloadBlob(new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}),"PlutoSign-Manual-Offset-References.json");
+});
+$("manualOffsetImport").addEventListener("click",()=>$("manualOffsetImportFile").click());
+$("manualOffsetImportFile").addEventListener("change",async event=>{
+ const file=event.target.files&&event.target.files[0];
+ if(!file)return;
+ try{
+  if(file.size>2*1024*1024)throw new Error("The JSON file exceeds the 2 MB import limit.");
+  const parsed=JSON.parse(await file.text());
+  const entries=Array.isArray(parsed)?parsed:parsed.entries;
+  if(!Array.isArray(entries))throw new Error("The JSON must contain an entries array.");
+  if(entries.length>1000)throw new Error("A maximum of 1,000 reference records can be imported.");
+  const clean=entries.map((entry,index)=>({
+   id:"manual-"+Date.now()+"-"+index+"-"+Math.random().toString(36).slice(2,6),
+   label:String(entry.label||"").slice(0,120),
+   library:String(entry.library||"").slice(0,180),
+   architecture:String(entry.architecture||"").slice(0,40),
+   version:String(entry.version||"").slice(0,60),
+   value:String(entry.value||"").slice(0,160),
+   note:String(entry.note||"").slice(0,1000)
+  }));
+  if(!window.confirm("Replace the current manual reference records with "+clean.length+" imported record(s)?"))return;
+  manualOffsetReferences=clean;
+  saveManualOffsetReferences();
+  renderManualOffsetReferences();
+  toast(clean.length+" manual reference record(s) imported.");
+ }catch(error){toast("Could not import JSON: "+error.message);}
+ finally{event.target.value="";}
+});
+loadManualOffsetReferences();
+renderManualOffsetReferences();
 async function inspectDylib(path){
  const item=currentArchive();if(!item)return;const file=item.zip.file(path);if(!file)return;
  $("dylibDetail").innerHTML='<span class="badge">Reading '+escapeHTML(path)+'</span>';
