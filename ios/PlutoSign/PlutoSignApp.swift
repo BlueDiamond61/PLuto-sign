@@ -370,7 +370,7 @@ struct Dashboard: View {
                         VStack(alignment: .leading, spacing: 10) {
                             Text("PROFILE DOWNLOAD").font(.caption.bold()).foregroundStyle(Style.pink)
                             Text("Add a removable Pluto Sign shortcut to your iPhone Home Screen.").font(.subheadline).foregroundStyle(Style.muted)
-                            Link(destination: URL(string: "https://bluediamond61.github.io/PLuto-sign/pluto-sign-home.mobileconfig")!) {
+                            Link(destination: URL(string: "https://bluediamond61.github.io/PLuto-sign/")!) {
                                 Label("Download Home Screen Profile", systemImage: "person.crop.square.badge.plus").frame(maxWidth: .infinity)
                             }.buttonStyle(MainButton())
                             Text("After tapping Allow in Safari, open Settings → Profile Downloaded and review the profile before installing.").font(.caption).foregroundStyle(Style.muted)
