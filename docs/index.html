@@ -794,7 +794,11 @@ function loadManualOffsetReferences(){
    architecture:String(entry.architecture||""),
    version:String(entry.version||""),
    value:String(entry.value||""),
-   note:String(entry.note||"")
+   note:String(entry.note||""),
+   origin:String(entry.origin||"manual"),
+   sourcePath:String(entry.sourcePath||""),
+   kind:String(entry.kind||""),
+   fileSize:String(entry.fileSize||"")
   }));
  }catch(error){manualOffsetReferences=[];}
 }
@@ -814,18 +818,19 @@ function renderManualOffsetReferences(){
  if(!visible.length){target.innerHTML='<div class="empty">No reference records match this search.</div>';return;}
  target.innerHTML=visible.map(entry=>
   '<div class="manual-offset-row" data-manual-record="'+escapeHTML(entry.id)+'">'+
+   '<div class="manual-offset-origin manual-offset-wide"><span class="badge">'+(entry.origin==="inspector"?"Detected by Dylib Inspector":"Manual reference")+'</span>'+(entry.kind?" <span class="rowdetail">'+escapeHTML(entry.kind)+'</span>':"")+'</div>'+
    '<label>Label<input type="text" maxlength="120" data-manual-field="label" value="'+escapeHTML(entry.label)+'" placeholder="e.g. My reference"></label>'+
    '<label>Library / component<input type="text" maxlength="180" data-manual-field="library" value="'+escapeHTML(entry.library)+'" placeholder="Library or component name"></label>'+
    '<label>Architecture<input type="text" maxlength="40" data-manual-field="architecture" value="'+escapeHTML(entry.architecture)+'" placeholder="e.g. arm64"></label>'+
    '<label>Version<input type="text" maxlength="60" data-manual-field="version" value="'+escapeHTML(entry.version)+'" placeholder="App or library version"></label>'+
-   '<label class="manual-offset-wide">Manual reference value<input type="text" maxlength="160" data-manual-field="value" value="'+escapeHTML(entry.value)+'" placeholder="Enter your own reference value"></label>'+
+   '<label class="manual-offset-wide">Reference value / static file offset<input type="text" maxlength="160" data-manual-field="value" value="'+escapeHTML(entry.value)+'" placeholder="Enter your own reference value"></label>'+
    '<label class="manual-offset-wide">Notes<textarea maxlength="1000" data-manual-field="note" placeholder="Optional notes">'+escapeHTML(entry.note)+'</textarea></label>'+
    '<div class="manual-offset-actions"><button class="danger smallbtn" type="button" data-manual-delete="'+escapeHTML(entry.id)+'">Delete record</button></div>'+
   '</div>'
  ).join("");
 }
 function addManualOffsetReference(){
- manualOffsetReferences.push({id:"manual-"+Date.now()+"-"+Math.random().toString(36).slice(2,8),label:"",library:"",architecture:"arm64",version:"",value:"",note:""});
+ manualOffsetReferences.push({id:"manual-"+Date.now()+"-"+Math.random().toString(36).slice(2,8),label:"",library:"",architecture:"arm64",version:"",value:"",note:"",origin:"manual",sourcePath:"",kind:"",fileSize:""});
  saveManualOffsetReferences();
  renderManualOffsetReferences();
  const rows=$("manualOffsetList").querySelectorAll(".manual-offset-row");
@@ -872,7 +877,11 @@ $("manualOffsetImportFile").addEventListener("change",async event=>{
    architecture:String(entry.architecture||"").slice(0,40),
    version:String(entry.version||"").slice(0,60),
    value:String(entry.value||"").slice(0,160),
-   note:String(entry.note||"").slice(0,1000)
+   note:String(entry.note||"").slice(0,1000),
+   origin:String(entry.origin||"manual"),
+   sourcePath:String(entry.sourcePath||"").slice(0,500),
+   kind:String(entry.kind||"").slice(0,50),
+   fileSize:String(entry.fileSize||"").slice(0,40)
   }));
   if(!window.confirm("Replace the current manual reference records with "+clean.length+" imported record(s)?"))return;
   manualOffsetReferences=clean;
@@ -884,6 +893,54 @@ $("manualOffsetImportFile").addEventListener("change",async event=>{
 });
 loadManualOffsetReferences();
 renderManualOffsetReferences();
+function syncInspectedOffsetsToWorkspace(item,path,entries){
+ const now=[];
+ entries.forEach(entry=>{
+  const key=[item.id,path,entry.architecture,entry.kind,entry.name].join("|");
+  const id="inspector-"+encodeURIComponent(key);
+  const existing=manualOffsetReferences.find(record=>record.id===id);
+  const record=existing||{
+   id:id,
+   label:entry.name,
+   library:path,
+   architecture:entry.architecture,
+   version:item.version||"",
+   value:entry.fileOffset,
+   note:"Detected static file offset. File size: "+entry.fileSize,
+   origin:"inspector",
+   sourcePath:path,
+   kind:entry.kind,
+   fileSize:entry.fileSize
+  };
+  record.origin="inspector";
+  record.sourcePath=path;
+  record.library=path;
+  record.architecture=entry.architecture;
+  record.version=item.version||"";
+  record.kind=entry.kind;
+  record.fileSize=entry.fileSize;
+  record.value=entry.fileOffset;
+  if(!existing)manualOffsetReferences.push(record);
+  else{
+   if(!record.label)record.label=entry.name;
+   if(!record.note)record.note="Detected static file offset. File size: "+entry.fileSize;
+  }
+  now.push(record);
+ });
+ if(manualOffsetReferences.length>1000){
+  const overflow=manualOffsetReferences.length-1000;
+  const removable=manualOffsetReferences.findIndex(record=>record.origin!=="inspector");
+  if(removable>=0)manualOffsetReferences.splice(removable,Math.min(overflow,manualOffsetReferences.length-removable));
+  if(manualOffsetReferences.length>1000)manualOffsetReferences=manualOffsetReferences.slice(-1000);
+ }
+ saveManualOffsetReferences();
+ const search=$("manualOffsetSearch");
+ if(search)search.value=path;
+ renderManualOffsetReferences();
+ const editor=$("manualOffsetEditor");
+ if(editor)editor.scrollIntoView({behavior:"smooth",block:"start"});
+ toast(now.length+" static file-offset reference(s) from "+path.split("/").pop()+" added to the workspace.");
+}
 async function inspectDylib(path){
  const item=currentArchive();if(!item)return;const file=item.zip.file(path);if(!file)return;
  $("dylibDetail").innerHTML='<span class="badge">Reading '+escapeHTML(path)+'</span>';
@@ -892,6 +949,7 @@ async function inspectDylib(path){
   const slices=machoArchitectures(buffer);
   bulkOffsetEntries=buildBulkOffsetEntries(path,slices);
   bulkOffsetSelected.clear();
+  syncInspectedOffsetsToWorkspace(item,path,bulkOffsetEntries);
   let html='<div class="sectionlabel">FILE: '+escapeHTML(path)+'</div><div class="badge good">'+sizeText(buffer.byteLength)+' · Mach-O</div>';
   slices.forEach(m=>{
    html+='<div class="card" style="margin-top:10px"><div class="row"><h3 style="margin:0">'+escapeHTML(m.arch)+'</h3><span class="badge">'+m.bits+'-bit</span></div>';
@@ -907,7 +965,8 @@ async function inspectDylib(path){
   const bulkPanel=$("bulkOffsetsPanel");
   $("dylibDetail").insertAdjacentElement("afterend",bulkPanel);
   renderBulkOffsetEntries();
-  bulkPanel.scrollIntoView({behavior:"smooth",block:"nearest"});
+  const workspace=$("manualOffsetEditor");
+  if(workspace)workspace.scrollIntoView({behavior:"smooth",block:"start"});
  }catch(err){
   bulkOffsetEntries=[];bulkOffsetSelected.clear();
   $("bulkOffsetsPanel").hidden=true;
