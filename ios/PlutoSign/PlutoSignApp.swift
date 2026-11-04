@@ -290,65 +290,186 @@ enum IPAService {
 @MainActor final class PlutoStore: ObservableObject {
     @Published var ipas: [IPARecord] = []
     @Published var assets: [AssetRecord] = []
+    @Published var documents: [ImportedFileRecord] = []
     @Published var activity: [String] = []
     @Published var error: String?
-    private struct Library: Codable { var ipas: [IPARecord] = []; var assets: [AssetRecord] = []; var activity: [String] = [] }
+
+    private struct Library: Codable {
+        var ipas: [IPARecord] = []
+        var assets: [AssetRecord] = []
+        var documents: [ImportedFileRecord] = []
+        var activity: [String] = []
+        enum CodingKeys: String, CodingKey { case ipas, assets, documents, activity }
+        init(ipas: [IPARecord] = [], assets: [AssetRecord] = [], documents: [ImportedFileRecord] = [], activity: [String] = []) {
+            self.ipas = ipas
+            self.assets = assets
+            self.documents = documents
+            self.activity = activity
+        }
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            ipas = try c.decodeIfPresent([IPARecord].self, forKey: .ipas) ?? []
+            assets = try c.decodeIfPresent([AssetRecord].self, forKey: .assets) ?? []
+            documents = try c.decodeIfPresent([ImportedFileRecord].self, forKey: .documents) ?? []
+            activity = try c.decodeIfPresent([String].self, forKey: .activity) ?? []
+        }
+    }
+
     init() {
         do {
             try PlutoStorage.prepare()
-            if let data = try? Data(contentsOf: PlutoStorage.library), let lib = try? JSONDecoder().decode(Library.self, from: data) {
-                ipas = lib.ipas.filter { FileManager.default.fileExists(atPath: $0.path) }
-                assets = lib.assets
-                activity = lib.activity
-            }
-        } catch { self.error = error.localizedDescription }
+            reload()
+        } catch {
+            self.error = error.localizedDescription
+        }
     }
+
+    func reload() {
+        guard let data = try? Data(contentsOf: PlutoStorage.library),
+              let lib = try? JSONDecoder().decode(Library.self, from: data) else { return }
+        ipas = lib.ipas.filter { FileManager.default.fileExists(atPath: $0.path) }
+        assets = lib.assets.filter { $0.path.hasPrefix("keychain:") || FileManager.default.fileExists(atPath: $0.path) }
+        documents = lib.documents.filter { FileManager.default.fileExists(atPath: $0.path) }
+        activity = lib.activity
+    }
+
     private func save() {
-        do { try JSONEncoder().encode(Library(ipas: ipas, assets: assets, activity: activity)).write(to: PlutoStorage.library, options: .atomic) }
-        catch { self.error = error.localizedDescription }
+        do {
+            let lib = Library(ipas: ipas, assets: assets, documents: documents, activity: activity)
+            try JSONEncoder().encode(lib).write(to: PlutoStorage.library, options: .atomic)
+        } catch {
+            self.error = error.localizedDescription
+        }
     }
-    func log(_ value: String) { activity.insert(value, at: 0); activity = Array(activity.prefix(12)); save() }
+
+    func log(_ value: String) {
+        activity.insert(value, at: 0)
+        activity = Array(activity.prefix(12))
+        save()
+    }
+
     func importIPAs(_ urls: [URL]) {
         for url in urls {
             let access = url.startAccessingSecurityScopedResource()
             defer { if access { url.stopAccessingSecurityScopedResource() } }
+            var destination: URL?
             do {
                 let dest = PlutoStorage.unique(url.lastPathComponent, in: PlutoStorage.ipas)
+                destination = dest
                 try FileManager.default.copyItem(at: url, to: dest)
                 let info = try IPAService.metadata(dest)
                 let size = (try? FileManager.default.attributesOfItem(atPath: dest.path)[.size] as? NSNumber)?.int64Value ?? 0
-                ipas.insert(IPARecord(name: dest.lastPathComponent, path: dest.path, app: info.0, bundle: info.1, version: info.2, build: info.3, size: size), at: 0)
-                log("Imported \(info.0)")
-            } catch { error = error.localizedDescription }
+                ipas.insert(IPARecord(name: dest.lastPathComponent, path: dest.path, app: info.0, bundle: info.1,
+                                      version: info.2, build: info.3, size: size), at: 0)
+                log("Imported IPA: \(info.0)")
+            } catch {
+                if let destination { try? FileManager.default.removeItem(at: destination) }
+                self.error = "Could not import \(url.lastPathComponent): \(error.localizedDescription)"
+            }
         }
         save()
     }
+
     func importProfile(_ url: URL) {
         let access = url.startAccessingSecurityScopedResource()
         defer { if access { url.stopAccessingSecurityScopedResource() } }
         do {
             let dest = PlutoStorage.unique(url.lastPathComponent, in: PlutoStorage.profiles)
             try FileManager.default.copyItem(at: url, to: dest)
-            assets.insert(AssetRecord(name: dest.lastPathComponent, kind: "Provisioning Profile", path: dest.path), at: 0)
+            let data = try Data(contentsOf: dest)
+            var detail = "Profile imported, but metadata could not be read."
+            if let info = try? ProvisioningProfileInspector.info(data) {
+                let expiry = DateFormatter.localizedString(from: info.expiration, dateStyle: .medium, timeStyle: .short)
+                detail = "\(info.team) • \(info.applicationIdentifier) • Expires \(expiry)"
+            }
+            assets.insert(AssetRecord(name: dest.lastPathComponent, kind: "Provisioning Profile", path: dest.path, detail: detail), at: 0)
             log("Imported provisioning profile")
-        } catch { error = error.localizedDescription }
+        } catch {
+            self.error = error.localizedDescription
+        }
     }
+
+    func importFiles(_ urls: [URL]) {
+        for url in urls {
+            let access = url.startAccessingSecurityScopedResource()
+            defer { if access { url.stopAccessingSecurityScopedResource() } }
+            let ext = url.pathExtension.lowercased()
+            if ext == "ipa" {
+                importIPAs([url])
+                continue
+            }
+            if ext == "mobileprovision" {
+                importProfile(url)
+                continue
+            }
+            do {
+                let dest = PlutoStorage.unique(url.lastPathComponent, in: PlutoStorage.documents)
+                try FileManager.default.copyItem(at: url, to: dest)
+                let attributes = try FileManager.default.attributesOfItem(atPath: dest.path)
+                let size = (attributes[.size] as? NSNumber)?.int64Value ?? 0
+                documents.insert(ImportedFileRecord(name: dest.lastPathComponent, path: dest.path,
+                                                     fileType: ext.isEmpty ? "FILE" : ext.uppercased(), size: size), at: 0)
+                log("Imported file: \(dest.lastPathComponent)")
+            } catch {
+                self.error = error.localizedDescription
+            }
+        }
+        save()
+    }
+
     func importP12(_ data: Data, name: String, password: String) throws {
         try PlutoKeychain.validateP12(data, password: password)
         let account = UUID().uuidString
         try PlutoKeychain.save(data, account: account)
-        assets.insert(AssetRecord(name: name, kind: "P12 / PFX", path: "keychain:" + account), at: 0)
-        log("Stored certificate in Keychain")
+        assets.insert(AssetRecord(name: name, kind: "P12 / PFX", path: "keychain:" + account,
+                                  detail: "Password checked • Identity found • Protected in Keychain"), at: 0)
+        log("Stored certificate identity in Keychain")
     }
+
     func remove(_ asset: AssetRecord) {
-        if asset.path.hasPrefix("keychain:") { PlutoKeychain.remove(String(asset.path.dropFirst(9))) }
-        else { try? FileManager.default.removeItem(atPath: asset.path) }
-        assets.removeAll { $0.id == asset.id }; log("Removed \(asset.name)")
+        if asset.path.hasPrefix("keychain:") {
+            PlutoKeychain.remove(String(asset.path.dropFirst(9)))
+        } else {
+            try? FileManager.default.removeItem(atPath: asset.path)
+        }
+        assets.removeAll { $0.id == asset.id }
+        log("Removed \(asset.name)")
     }
+
     func remove(_ ipa: IPARecord) {
         try? FileManager.default.removeItem(at: ipa.url)
-        ipas.removeAll { $0.id == ipa.id }; log("Removed \(ipa.name)")
+        ipas.removeAll { $0.id == ipa.id }
+        log("Removed \(ipa.name)")
     }
+
+    func removeDocument(_ file: ImportedFileRecord) {
+        try? FileManager.default.removeItem(at: file.url)
+        documents.removeAll { $0.id == file.id }
+        log("Removed file \(file.name)")
+    }
+
+    func signingReadiness(_ ipa: IPARecord, certificate: AssetRecord?, profile: AssetRecord?) -> String {
+        guard let certificate, certificate.kind == "P12 / PFX", certificate.path.hasPrefix("keychain:") else {
+            return "Select an imported P12/PFX identity."
+        }
+        guard let profile, profile.kind == "Provisioning Profile",
+              FileManager.default.fileExists(atPath: profile.path) else {
+            return "Select an imported provisioning profile."
+        }
+        do {
+            let info = try ProvisioningProfileInspector.info(Data(contentsOf: URL(fileURLWithPath: profile.path)))
+            guard info.expiration > Date() else {
+                return "The selected profile expired on \(DateFormatter.localizedString(from: info.expiration, dateStyle: .medium, timeStyle: .short))."
+            }
+            guard ProvisioningProfileInspector.matches(bundleID: ipa.bundle, applicationIdentifier: info.applicationIdentifier) else {
+                return "Bundle ID mismatch. IPA: \(ipa.bundle). Profile App ID: \(info.applicationIdentifier)."
+            }
+            return "Local checks passed: a P12 identity is present, the profile is readable and unexpired, and its App ID matches this IPA. The macOS signing workflow must still verify certificate/profile pairing, entitlements, team authorization and the final signature."
+        } catch {
+            return "Profile metadata could not be read: \(error.localizedDescription)"
+        }
+    }
+
     func signingRequest(_ ipa: IPARecord, _ cert: AssetRecord?, _ profile: AssetRecord?) throws -> URL {
         let json = try JSONSerialization.data(withJSONObject: [
             "ipa": ipa.name, "bundle_id": ipa.bundle, "version": ipa.version, "build": ipa.build,
