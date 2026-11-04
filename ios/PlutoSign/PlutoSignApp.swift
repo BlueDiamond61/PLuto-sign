@@ -477,7 +477,7 @@ struct PlutoTabs: View {
                 .tag(0)
 
             Library()
-                .tabItem { Label("IPAs", systemImage: "shippingbox.fill") }
+                .tabItem { Label("View IPAs", systemImage: "shippingbox.fill") }
                 .tag(1)
 
             ImportedFiles()
@@ -485,11 +485,11 @@ struct PlutoTabs: View {
                 .tag(2)
 
             Assets()
-                .tabItem { Label("Assets", systemImage: "key.fill") }
+                .tabItem { Label("Cert Import", systemImage: "key.fill") }
                 .tag(3)
 
             SignPrep()
-                .tabItem { Label("Sign", systemImage: "signature") }
+                .tabItem { Label("Sign IPA", systemImage: "signature") }
                 .tag(4)
         }
         .tint(Style.violet)
@@ -623,7 +623,7 @@ struct Dashboard: View {
         VStack(alignment: .leading, spacing: 12) {
             sectionHeading("QUICK ACCESS", subtitle: "Jump into a workspace")
             HStack(spacing: 11) {
-                actionTile("Browse IPAs", detail: "Package library", icon: "shippingbox.fill") {
+                actionTile("View IPAs", detail: "Package library", icon: "shippingbox.fill") {
                     selectedTab = 1
                 }
                 actionTile("My Files", detail: "Documents & exports", icon: "folder.fill") {
@@ -631,10 +631,10 @@ struct Dashboard: View {
                 }
             }
             HStack(spacing: 11) {
-                actionTile("Signing Assets", detail: "P12 & profiles", icon: "key.fill") {
+                actionTile("Cert Import", detail: "Your P12 & profiles", icon: "key.fill") {
                     selectedTab = 3
                 }
-                actionTile("Signing Prep", detail: "Select signing inputs", icon: "signature") {
+                actionTile("Sign IPA", detail: "Prepare an authorized signing handoff", icon: "signature") {
                     selectedTab = 4
                 }
             }
@@ -803,7 +803,7 @@ struct Library: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 13) {
-                    Text("IPA Library").font(.system(size: 26, weight: .bold, design: .rounded))
+                    Text("View IPAs").font(.system(size: 26, weight: .bold, design: .rounded))
                     Button { importing = true } label: { Label("Import IPA", systemImage: "plus").frame(maxWidth: .infinity) }.buttonStyle(MainButton())
                     Button { importingFiles = true } label: { Label("Import Files", systemImage: "folder.badge.plus").frame(maxWidth: .infinity) }.buttonStyle(.bordered).tint(Style.violet)
                     TextField("Search app, bundle ID, version…", text: $query).padding(12).background(Style.card, in: RoundedRectangle(cornerRadius: 12))
@@ -1049,7 +1049,7 @@ struct Assets: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
-                    Text("Signing Assets").font(.system(size: 26, weight: .bold, design: .rounded))
+                    Text("Certificates & Profiles").font(.system(size: 26, weight: .bold, design: .rounded))
                     Panel {
                         VStack(alignment: .leading, spacing: 10) {
                             Text("IMPORT YOUR OWN SIGNING FILES").font(.caption.bold()).foregroundStyle(Style.pink)
@@ -1113,71 +1113,372 @@ struct Assets: View {
 }
 struct SignPrep: View {
     @EnvironmentObject var store: PlutoStore
+
     @State private var ipaID = ""
     @State private var certID = ""
     @State private var profileID = ""
+
+    @State private var pickIPA = false
+    @State private var pickP12 = false
+    @State private var pickProfile = false
+
+    @State private var candidate: Data?
+    @State private var candidateName = ""
+    @State private var password = ""
+    @State private var askPassword = false
+
     @State private var shareURL: URL?
     @State private var readiness = ""
     @State private var error: String?
+
+    private var selectedIPA: IPARecord? {
+        store.ipas.first { $0.id.uuidString == ipaID }
+    }
+
+    private var selectedCertificate: AssetRecord? {
+        store.assets.first { $0.id.uuidString == certID && $0.kind == "P12 / PFX" }
+    }
+
+    private var selectedProfile: AssetRecord? {
+        store.assets.first { $0.id.uuidString == profileID && $0.kind == "Provisioning Profile" }
+    }
+
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    Text("Signing Preparation").font(.system(size: 26, weight: .bold, design: .rounded))
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 16) {
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text("Sign IPA")
+                            .font(.system(size: 28, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                        Text("Choose your app package and bring your own Apple signing files.")
+                            .font(.subheadline)
+                            .foregroundStyle(Style.muted)
+                    }
+
                     Panel {
-                        VStack(alignment: .leading, spacing: 10) {
-                            choose("IPA", value: $ipaID, items: store.ipas.map { ($0.id.uuidString, "\($0.app) • \($0.version)") })
-                            choose("P12 / PFX", value: $certID, items: store.assets.filter { $0.kind == "P12 / PFX" }.map { ($0.id.uuidString, $0.name) })
-                            choose("Profile", value: $profileID, items: store.assets.filter { $0.kind == "Provisioning Profile" }.map { ($0.id.uuidString, $0.name) })
+                        VStack(alignment: .leading, spacing: 12) {
+                            Label("1. SELECT OR IMPORT AN IPA", systemImage: "shippingbox.fill")
+                                .font(.caption.bold())
+                                .tracking(0.5)
+                                .foregroundStyle(Style.pink)
+
+                            selectionRow(
+                                title: selectedIPA?.app ?? "No IPA selected",
+                                detail: selectedIPA.map { "\($0.bundle) • v\($0.version) (\($0.build))" } ?? "Import an IPA package from Files",
+                                icon: "app.dashed",
+                                isReady: selectedIPA != nil
+                            )
+
+                            choose("IPA PACKAGE", value: $ipaID,
+                                   items: store.ipas.map { ($0.id.uuidString, "\($0.app) • \($0.version)") })
+
                             Button {
-                                do {
-                                    guard let ipa = store.ipas.first(where: { $0.id.uuidString == ipaID }) else { throw PlutoError.info }
-                                    shareURL = try store.signingRequest(ipa, store.assets.first { $0.id.uuidString == certID }, store.assets.first { $0.id.uuidString == profileID })
-                                } catch { self.error = error.localizedDescription }
-                            } label: { Label("Export signing request", systemImage: "square.and.arrow.up").frame(maxWidth: .infinity) }.buttonStyle(MainButton()).disabled(ipaID.isEmpty)
-                            Button("Check signing readiness") {
-                                guard let ipa = store.ipas.first(where: { $0.id.uuidString == ipaID }) else {
-                                    readiness = "Select an IPA package first."
+                                pickIPA = true
+                            } label: {
+                                Label("Import IPA from Files", systemImage: "folder.badge.plus")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(MainButton())
+                        }
+                    }
+
+                    Panel {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Label("2. IMPORT YOUR OWN CERTIFICATE", systemImage: "key.fill")
+                                .font(.caption.bold())
+                                .tracking(0.5)
+                                .foregroundStyle(Style.pink)
+
+                            selectionRow(
+                                title: selectedCertificate?.name ?? "No P12 / PFX selected",
+                                detail: selectedCertificate == nil ? "Your private signing identity stays in this device's Keychain" : "Password validated • stored in Keychain",
+                                icon: "key.horizontal.fill",
+                                isReady: selectedCertificate != nil
+                            )
+
+                            choose("P12 / PFX IDENTITY", value: $certID,
+                                   items: store.assets.filter { $0.kind == "P12 / PFX" }.map { ($0.id.uuidString, $0.name) })
+
+                            Button {
+                                pickP12 = true
+                            } label: {
+                                Label("Import my P12 / PFX certificate", systemImage: "key.badge.plus")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(Style.violet)
+                        }
+                    }
+
+                    Panel {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Label("3. IMPORT YOUR PROVISIONING PROFILE", systemImage: "person.text.rectangle")
+                                .font(.caption.bold())
+                                .tracking(0.5)
+                                .foregroundStyle(Style.pink)
+
+                            selectionRow(
+                                title: selectedProfile?.name ?? "No profile selected",
+                                detail: selectedProfile == nil ? "Choose the profile issued for your app" : "Stored in Pluto Sign's private app storage",
+                                icon: "doc.badge.gearshape",
+                                isReady: selectedProfile != nil
+                            )
+
+                            choose("PROVISIONING PROFILE", value: $profileID,
+                                   items: store.assets.filter { $0.kind == "Provisioning Profile" }.map { ($0.id.uuidString, $0.name) })
+
+                            Button {
+                                pickProfile = true
+                            } label: {
+                                Label("Import .mobileprovision", systemImage: "folder.badge.plus")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(Style.violet)
+                        }
+                    }
+
+                    Panel {
+                        VStack(alignment: .leading, spacing: 11) {
+                            Label("4. CHECK AND EXPORT", systemImage: "checkmark.shield.fill")
+                                .font(.caption.bold())
+                                .tracking(0.5)
+                                .foregroundStyle(Style.pink)
+
+                            checklistRow("IPA package selected", ready: selectedIPA != nil)
+                            checklistRow("P12 / PFX imported", ready: selectedCertificate != nil)
+                            checklistRow("Provisioning profile imported", ready: selectedProfile != nil)
+
+                            Button {
+                                guard let ipa = selectedIPA else {
+                                    readiness = "Import or select an IPA package first."
                                     return
                                 }
                                 readiness = store.signingReadiness(
                                     ipa,
-                                    certificate: store.assets.first { $0.id.uuidString == certID },
-                                    profile: store.assets.first { $0.id.uuidString == profileID }
+                                    certificate: selectedCertificate,
+                                    profile: selectedProfile
                                 )
-                            }.buttonStyle(.bordered).tint(Style.violet).disabled(ipaID.isEmpty)
-                            if !readiness.isEmpty {
-                                Text(readiness).font(.footnote).foregroundStyle(Style.muted).fixedSize(horizontal: false, vertical: true)
-                                    .padding(10).frame(maxWidth: .infinity, alignment: .leading)
-                                    .background(Style.bg, in: RoundedRectangle(cornerRadius: 11))
+                            } label: {
+                                Label("Check signing inputs", systemImage: "checkmark.circle")
+                                    .frame(maxWidth: .infinity)
                             }
-                            if let shareURL { ShareLink(item: shareURL) { Label("Share request JSON", systemImage: "shareplay") } }
+                            .buttonStyle(.bordered)
+                            .tint(Style.violet)
+                            .disabled(selectedIPA == nil)
+
+                            Button {
+                                do {
+                                    guard let ipa = selectedIPA else { throw PlutoError.info }
+                                    shareURL = try store.signingRequest(ipa, selectedCertificate, selectedProfile)
+                                    readiness = "Signing handoff request created. Share the request with your authorized Mac signing workflow. The IPA has not been signed."
+                                } catch {
+                                    self.error = error.localizedDescription
+                                }
+                            } label: {
+                                Label("Export signing handoff", systemImage: "square.and.arrow.up")
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(MainButton())
+                            .disabled(selectedIPA == nil || selectedCertificate == nil || selectedProfile == nil)
+
+                            if !readiness.isEmpty {
+                                Text(readiness)
+                                    .font(.footnote)
+                                    .foregroundStyle(Style.muted)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .padding(12)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Style.bg, in: RoundedRectangle(cornerRadius: 12))
+                            }
+
+                            if let shareURL {
+                                ShareLink(item: shareURL) {
+                                    Label("Share signing request JSON", systemImage: "doc.text")
+                                }
+                                .font(.subheadline.weight(.semibold))
+                                .tint(Style.violet)
+                            }
+
+                            if let selectedIPA {
+                                ShareLink(item: selectedIPA.url) {
+                                    Label("Share original IPA", systemImage: "shippingbox")
+                                }
+                                .font(.subheadline.weight(.semibold))
+                                .tint(Style.violet)
+                            }
                         }
                     }
+
                     Panel {
                         VStack(alignment: .leading, spacing: 8) {
-                            Label("Signing limitations", systemImage: "lock.shield.fill").font(.headline).foregroundStyle(Style.pink)
-                            Text("This iOS app imports and protects your own signing files, then exports a signing request. It does not sign or install arbitrary IPAs. Actual signing needs an authorized Apple signing workflow.")
-                                .font(.footnote).foregroundStyle(Style.muted)
-                            Link("Open InstallOnAir", destination: URL(string: "https://www.installonair.com/")!)
-                            Text("InstallOnAir hosts an already-signed IPA. It does not sign it.").font(.caption).foregroundStyle(Style.muted)
+                            Label("What happens on this screen?", systemImage: "info.circle.fill")
+                                .font(.headline)
+                                .foregroundStyle(Style.pink)
+                            Text("Pluto Sign imports and protects your own P12/PFX identity, stores your provisioning profile, checks that the three inputs are present and exports a handoff request. It does not run Apple's codesign tool or claim that an IPA is signed.")
+                                .font(.footnote)
+                                .foregroundStyle(Style.muted)
+                            Text("Actual signing must be completed on a Mac using Apple's authorized signing tools. The certificate and profile must match the app's bundle ID, entitlements and distribution method. Never share your P12 password or private key in a public repository.")
+                                .font(.footnote)
+                                .foregroundStyle(Style.muted)
                         }
                     }
-                }.padding(20)
-            }.background(Style.bg).navigationBarHidden(true)
-            .alert("Signing", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) { Button("OK") { error = nil } } message: { Text(error ?? "") }
+                }
+                .padding(18)
+                .padding(.bottom, 25)
+            }
+            .background(Style.bg.ignoresSafeArea())
+            .toolbar(.hidden, for: .navigationBar)
+            .fileImporter(
+                isPresented: $pickIPA,
+                allowedContentTypes: [UTType(filenameExtension: "ipa") ?? .data],
+                allowsMultipleSelection: true
+            ) { result in
+                switch result {
+                case .success(let urls):
+                    store.importIPAs(urls)
+                    if let first = store.ipas.first { ipaID = first.id.uuidString }
+                    readiness = ""
+                case .failure(let error):
+                    self.error = error.localizedDescription
+                }
+            }
+            .fileImporter(
+                isPresented: $pickP12,
+                allowedContentTypes: [
+                    UTType(filenameExtension: "p12") ?? .data,
+                    UTType(filenameExtension: "pfx") ?? .data
+                ]
+            ) { result in
+                do {
+                    let url = try result.get()
+                    let access = url.startAccessingSecurityScopedResource()
+                    defer { if access { url.stopAccessingSecurityScopedResource() } }
+                    candidate = try Data(contentsOf: url)
+                    candidateName = url.lastPathComponent
+                    askPassword = true
+                } catch {
+                    self.error = error.localizedDescription
+                }
+            }
+            .fileImporter(
+                isPresented: $pickProfile,
+                allowedContentTypes: [UTType(filenameExtension: "mobileprovision") ?? .data]
+            ) { result in
+                do {
+                    store.importProfile(try result.get())
+                    if let first = store.assets.first(where: { $0.kind == "Provisioning Profile" }) {
+                        profileID = first.id.uuidString
+                    }
+                    readiness = ""
+                } catch {
+                    self.error = error.localizedDescription
+                }
+            }
+            .sheet(isPresented: $askPassword) {
+                NavigationStack {
+                    Form {
+                        Section("Certificate password") {
+                            SecureField("P12 / PFX password", text: $password)
+                            Text("The password is used only to validate the certificate file. Pluto Sign does not save the password.")
+                                .font(.footnote)
+                                .foregroundStyle(Style.muted)
+                        }
+                        Section {
+                            Button("Validate and save to Keychain") {
+                                do {
+                                    guard let data = candidate else { throw PlutoError.keychain(errSecParam) }
+                                    try store.importP12(data, name: candidateName, password: password)
+                                    if let first = store.assets.first(where: { $0.kind == "P12 / PFX" }) {
+                                        certID = first.id.uuidString
+                                    }
+                                    candidate = nil
+                                    candidateName = ""
+                                    password = ""
+                                    askPassword = false
+                                    readiness = ""
+                                } catch {
+                                    self.error = error.localizedDescription
+                                }
+                            }
+                            .disabled(candidate == nil || password.isEmpty)
+                        }
+                    }
+                    .navigationTitle("Import Certificate")
+                    .toolbar {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button("Cancel") {
+                                askPassword = false
+                                candidate = nil
+                                candidateName = ""
+                                password = ""
+                            }
+                        }
+                    }
+                }
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+            }
+            .alert("Sign IPA", isPresented: Binding(get: { error != nil }, set: { if !$0 { error = nil } })) {
+                Button("OK") { error = nil }
+            } message: {
+                Text(error ?? "")
+            }
+        }
+        .tint(Style.violet)
+    }
+
+    private func selectionRow(title: String, detail: String, icon: String, isReady: Bool) -> some View {
+        HStack(spacing: 11) {
+            Image(systemName: icon)
+                .font(.system(size: 19, weight: .semibold))
+                .foregroundStyle(isReady ? Style.pink : Style.muted)
+                .frame(width: 42, height: 42)
+                .background(Style.violet.opacity(0.15), in: RoundedRectangle(cornerRadius: 12))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                Text(detail)
+                    .font(.caption2)
+                    .foregroundStyle(Style.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+            Image(systemName: isReady ? "checkmark.circle.fill" : "circle.dashed")
+                .foregroundStyle(isReady ? Style.violet : Style.muted)
         }
     }
-    func choose(_ title: String, value: Binding<String>, items: [(String, String)]) -> some View {
+
+    private func checklistRow(_ title: String, ready: Bool) -> some View {
+        HStack(spacing: 9) {
+            Image(systemName: ready ? "checkmark.circle.fill" : "circle")
+                .foregroundStyle(ready ? Style.violet : Style.muted)
+            Text(title)
+                .font(.subheadline)
+                .foregroundStyle(ready ? .white : Style.muted)
+            Spacer()
+        }
+    }
+
+    private func choose(_ title: String, value: Binding<String>, items: [(String, String)]) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(title.uppercased()).font(.caption2.bold()).foregroundStyle(Style.muted)
+            Text(title)
+                .font(.caption2.bold())
+                .foregroundStyle(Style.muted)
             Picker(title, selection: value) {
                 Text("Not selected").tag("")
                 ForEach(items, id: \.0) { Text($0.1).tag($0.0) }
-            }.pickerStyle(.menu).frame(maxWidth: .infinity, alignment: .leading).padding(8).background(Style.bg, in: RoundedRectangle(cornerRadius: 10))
+            }
+            .pickerStyle(.menu)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(9)
+            .background(Style.bg, in: RoundedRectangle(cornerRadius: 10))
         }
     }
 }
+
 func parent(_ path: String) -> String { path.split(separator: "/").dropLast().joined(separator: "/") }
 func iconName(_ name: String) -> String {
     switch URL(fileURLWithPath: name).pathExtension.lowercased() {
