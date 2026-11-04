@@ -962,6 +962,7 @@ function renderArchive(){
  updateArchiveSelectionUI();
 }
 async function persistArchiveChanges(item){
+ pendingIPAExports.delete(item.id);
  item.modified=true;
  item.names=Object.keys(item.zip.files).filter(n=>!item.zip.files[n].dir);
  state.archiveNames=item.names;
