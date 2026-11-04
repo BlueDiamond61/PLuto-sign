@@ -19,6 +19,15 @@ struct AssetRecord: Identifiable, Codable {
     var name: String
     var kind: String
     var path: String
+    var detail: String? = nil
+}
+struct ImportedFileRecord: Identifiable, Codable {
+    var id = UUID()
+    var name: String
+    var path: String
+    var fileType: String
+    var size: Int64
+    var url: URL { URL(fileURLWithPath: path) }
 }
 struct ArchiveRecord: Identifiable, Hashable {
     var id: String { path }
@@ -53,10 +62,11 @@ enum PlutoStorage {
     static let root = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("PlutoSign")
     static let ipas = root.appendingPathComponent("IPAs")
     static let profiles = root.appendingPathComponent("Profiles")
+    static let documents = root.appendingPathComponent("Documents")
     static let exports = root.appendingPathComponent("Exports")
     static let library = root.appendingPathComponent("library.json")
     static func prepare() throws {
-        for url in [root, ipas, profiles, exports] {
+        for url in [root, ipas, profiles, documents, exports] {
             try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         }
     }
@@ -100,6 +110,52 @@ enum PlutoKeychain {
             kSecAttrService as String: "com.plutosign.signing-assets",
             kSecAttrAccount as String: account
         ] as CFDictionary)
+    }
+}
+struct ProvisioningProfileInfo {
+    let name: String
+    let uuid: String
+    let team: String
+    let applicationIdentifier: String
+    let expiration: Date
+}
+enum ProvisioningProfileInspector {
+    static func decode(_ data: Data) throws -> [String: Any] {
+        var decoder: CMSDecoder?
+        let createStatus = CMSDecoderCreate(&decoder)
+        guard createStatus == errSecSuccess, let decoder else { throw PlutoError.keychain(createStatus) }
+        defer { CFRelease(decoder) }
+        let updateStatus = data.withUnsafeBytes { raw -> OSStatus in
+            guard let base = raw.baseAddress else { return errSecParam }
+            return CMSDecoderUpdateMessage(decoder, base, raw.count)
+        }
+        guard updateStatus == errSecSuccess else { throw PlutoError.keychain(updateStatus) }
+        let finalStatus = CMSDecoderFinalizeMessage(decoder)
+        guard finalStatus == errSecSuccess else { throw PlutoError.keychain(finalStatus) }
+        var content: CFData?
+        let copyStatus = CMSDecoderCopyContent(decoder, &content)
+        guard copyStatus == errSecSuccess, let content else { throw PlutoError.keychain(copyStatus) }
+        guard let plist = try PropertyListSerialization.propertyList(from: content as Data, options: [], format: nil) as? [String: Any] else {
+            throw PlutoError.plist
+        }
+        return plist
+    }
+    static func info(_ data: Data) throws -> ProvisioningProfileInfo {
+        let plist = try decode(data)
+        let entitlements = plist["Entitlements"] as? [String: Any] ?? [:]
+        let appID = entitlements["application-identifier"] as? String ?? ""
+        let team = plist["TeamName"] as? String ?? ((plist["TeamIdentifier"] as? [String])?.first ?? "Unknown team")
+        guard let expiration = plist["ExpirationDate"] as? Date, !appID.isEmpty else { throw PlutoError.plist }
+        return ProvisioningProfileInfo(name: plist["Name"] as? String ?? "Provisioning Profile",
+                                        uuid: plist["UUID"] as? String ?? "Unknown",
+                                        team: team, applicationIdentifier: appID, expiration: expiration)
+    }
+    static func matches(bundleID: String, applicationIdentifier: String) -> Bool {
+        guard let dot = applicationIdentifier.firstIndex(of: ".") else { return false }
+        let appID = String(applicationIdentifier[applicationIdentifier.index(after: dot)...])
+        if appID == "*" { return true }
+        if appID.hasSuffix(".*") { return bundleID.hasPrefix(String(appID.dropLast())) }
+        return appID == bundleID
     }
 }
 enum IPAService {
@@ -147,7 +203,7 @@ enum IPAService {
                 result[child] = ArchiveRecord(name: name, path: child, folder: true, size: 0)
             } else {
                 let isFolder = entry.type == .directory
-                result[child] = ArchiveRecord(name: name, path: child, folder: isFolder, size: isFolder ? 0 : entry.uncompressedSize)
+                result[child] = ArchiveRecord(name: name, path: child, folder: isFolder, size: isFolder ? 0 : Int64(clamping: entry.uncompressedSize))
             }
         }
         return result.values.sorted {
@@ -169,7 +225,7 @@ enum IPAService {
                 let data = try read(ipa, path, max: 500_000)
                 match = String(data: data, encoding: .utf8)?.localizedCaseInsensitiveContains(term) ?? false
             }
-            if match { found.append(ArchiveRecord(name: URL(fileURLWithPath: path).lastPathComponent, path: path, folder: false, size: entry.uncompressedSize)) }
+            if match { found.append(ArchiveRecord(name: URL(fileURLWithPath: path).lastPathComponent, path: path, folder: false, size: Int64(clamping: entry.uncompressedSize))) }
         }
         return found.sorted { $0.path.localizedCaseInsensitiveCompare($1.path) == .orderedAscending }
     }
