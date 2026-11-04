@@ -934,6 +934,32 @@ async function openMainAppFolder(){
  $("archiveList").scrollIntoView({behavior:"smooth",block:"nearest"});
 }
 $("openAppFolder").addEventListener("click",()=>openMainAppFolder().catch(err=>toast("Could not open app folder: "+err.message)));
+async function copyArchiveDetails(item,path,isFolder){
+ const name=path.split("/").pop()||path;
+ const details=["IPA: "+(item&&item.app||"Unknown package"),(item&&item.version?"Version: "+item.version:null),(isFolder?"Folder: ":"File: ")+name,"Path: "+path,"Type: "+(isFolder?"Folder":"File")].filter(Boolean).join("\n");
+ const message=(isFolder?"Folder":"File")+" details copied.";
+ try{
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+   await navigator.clipboard.writeText(details);
+   toast(message);
+   return;
+  }
+ }catch(error){}
+ const field=document.createElement("textarea");
+ field.value=details;
+ field.setAttribute("readonly","");
+ field.style.position="fixed";
+ field.style.opacity="0";
+ field.style.left="-9999px";
+ document.body.appendChild(field);
+ field.focus();
+ field.select();
+ field.setSelectionRange(0,field.value.length);
+ let copied=false;
+ try{copied=document.execCommand("copy");}catch(error){}
+ field.remove();
+ toast(copied?message:"Clipboard access is unavailable in this browser.");
+}
 const selectedArchivePaths=new Set();
 function updateArchiveSelectionUI(){
  const count=selectedArchivePaths.size;
@@ -953,12 +979,13 @@ function renderArchive(){
   state.archiveNames.forEach(n=>{if(!n.startsWith(prefix))return;const rest=n.slice(prefix.length);if(!rest)return;const parts=rest.split("/");const isFolder=parts.length>1;const child=prefix+parts[0];if(!rows.has(child))rows.set(child,{path:child,name:parts[0],folder:isFolder});});
  }
  const list=Array.from(rows.values()).sort((a,b)=>a.folder===b.folder?a.name.localeCompare(b.name):a.folder?-1:1);
- $("archiveList").innerHTML=list.length?list.map(r=>'<div class="archiveitem'+(selectedArchivePaths.has(r.path)?" selected":"")+'"><div class="row grow"><label class="archive-select" aria-label="Select '+escapeHTML(r.name)+'"><input type="checkbox" data-select-archive="'+escapeHTML(r.path)+'" '+(selectedArchivePaths.has(r.path)?"checked":"")+'></label><span>'+(r.folder?"📁":"📄")+'</span><div class="grow"><div class="rowtitle">'+escapeHTML(r.name)+'</div><div class="rowdetail">'+escapeHTML(r.path)+'</div></div></div><button data-entry="'+escapeHTML(r.path)+'" data-folder="'+r.folder+'">'+(r.folder?"Open":"Preview")+'</button></div>').join(""):'<div class="empty">No matching entries in this folder.</div>';
+ $("archiveList").innerHTML=list.length?list.map(r=>'<div class="archiveitem'+(selectedArchivePaths.has(r.path)?" selected":"")+'"><div class="row grow"><label class="archive-select" aria-label="Select '+escapeHTML(r.name)+'"><input type="checkbox" data-select-archive="'+escapeHTML(r.path)+'" '+(selectedArchivePaths.has(r.path)?"checked":"")+'></label><span>'+(r.folder?"📁":"📄")+'</span><div class="grow"><div class="rowtitle">'+escapeHTML(r.name)+'</div><div class="rowdetail">'+escapeHTML(r.path)+'</div></div></div><button class="quiet smallbtn" data-copy-archive="'+escapeHTML(r.path)+'" data-copy-folder="'+r.folder+'">Copy</button><button data-entry="'+escapeHTML(r.path)+'" data-folder="'+r.folder+'">'+(r.folder?"Open":"Preview")+'</button></div>').join(""):'<div class="empty">No matching entries in this folder.</div>';
  $("archiveList").querySelectorAll("[data-select-archive]").forEach(box=>box.addEventListener("change",()=>{
   if(box.checked)selectedArchivePaths.add(box.dataset.selectArchive);else selectedArchivePaths.delete(box.dataset.selectArchive);
   box.closest(".archiveitem").classList.toggle("selected",box.checked);updateArchiveSelectionUI();
  }));
  $("archiveList").querySelectorAll("[data-entry]").forEach(b=>b.addEventListener("click",()=>{if(b.dataset.folder==="true"){state.archivePath=b.dataset.entry;renderArchive();}else previewEntry(b.dataset.entry);}));
+ $("archiveList").querySelectorAll("[data-copy-archive]").forEach(button=>button.addEventListener("click",()=>copyArchiveDetails(currentArchive(),button.dataset.copyArchive,button.dataset.copyFolder==="true")));
  updateArchiveSelectionUI();
 }
 async function persistArchiveChanges(item){
@@ -1111,7 +1138,8 @@ function renderMultiPane(which){
   if(!rows.has(child))rows.set(child,{path:child,name:parts[0],folder});
  });
  const sorted=Array.from(rows.values()).sort((x,y)=>x.folder===y.folder?x.name.localeCompare(y.name):x.folder?-1:1);
- list.innerHTML=sorted.length?sorted.map(row=>'<div class="archiveitem"><div class="row grow"><span>'+(row.folder?"📁":"📄")+'</span><div class="grow"><div class="rowtitle">'+escapeHTML(row.name)+'</div><div class="rowdetail">'+escapeHTML(row.path)+'</div></div></div><button data-mw-entry="'+escapeHTML(row.path)+'" data-mw-folder="'+row.folder+'">'+(row.folder?"Open":"Preview")+'</button></div>').join(""):'<div class="empty">No matching files in this folder.</div>';
+ list.innerHTML=sorted.length?sorted.map(row=>'<div class="archiveitem"><div class="row grow"><span>'+(row.folder?"📁":"📄")+'</span><div class="grow"><div class="rowtitle">'+escapeHTML(row.name)+'</div><div class="rowdetail">'+escapeHTML(row.path)+'</div></div></div><button class="quiet smallbtn" data-mw-copy="'+escapeHTML(row.path)+'" data-mw-copy-folder="'+row.folder+'">Copy</button><button data-mw-entry="'+escapeHTML(row.path)+'" data-mw-folder="'+row.folder+'">'+(row.folder?"Open":"Preview")+'</button></div>').join(""):'<div class="empty">No matching files in this folder.</div>';
+ list.querySelectorAll("[data-mw-copy]").forEach(button=>button.addEventListener("click",()=>copyArchiveDetails(item,button.dataset.mwCopy,button.dataset.mwCopyFolder==="true")));
  list.querySelectorAll("[data-mw-entry]").forEach(button=>button.addEventListener("click",()=>{
   if(button.dataset.mwFolder==="true"){pane.path=button.dataset.mwEntry;renderMultiPane(which);}
   else previewMultiEntry(which,button.dataset.mwEntry);
