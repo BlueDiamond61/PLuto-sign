@@ -12,9 +12,9 @@
             <key>Label</key>
             <string>Pluto Sign</string>
             <key>PayloadDescription</key>
-            <string>Adds a removable Home Screen shortcut to the Pluto Sign project homepage.</string>
+            <string>Adds a removable Home Screen shortcut to the Pluto Sign workspace homepage. The page describes IPA package browsing, general file management, signing asset storage and signing preparation features.</string>
             <key>PayloadDisplayName</key>
-            <string>Pluto Sign Home Screen Shortcut</string>
+            <string>Pluto Sign Workspace Shortcut</string>
             <key>PayloadIdentifier</key>
             <string>com.bluediamond.plutosign.webclip</string>
             <key>PayloadType</key>
@@ -30,9 +30,9 @@
         </dict>
     </array>
     <key>PayloadDescription</key>
-    <string>Creates a removable Pluto Sign website shortcut on the Home Screen. This profile does not install certificates, configure VPN, enroll device management, or enable IPA installation.</string>
+    <string>Creates a removable Home Screen link to the Pluto Sign workspace. The linked project provides an IPA library, archive browser and search, a general Files area, P12/PFX and provisioning profile inventory, signing preparation and version metadata tools. This configuration profile itself installs only the website shortcut. It does not install the native app, certificates, VPN settings or device management, and it does not enable arbitrary IPA installation.</string>
     <key>PayloadDisplayName</key>
-    <string>Pluto Sign Home Screen Shortcut</string>
+    <string>Pluto Sign iOS Workspace</string>
     <key>PayloadIdentifier</key>
     <string>com.bluediamond.plutosign.homeprofile</string>
     <key>PayloadOrganization</key>
