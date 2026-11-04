@@ -3,39 +3,109 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#10091f">
-<title>Pluto Sign — iOS Profile</title>
+<meta name="theme-color" content="#0d0819">
+<meta name="description" content="Pluto Sign iOS workspace for IPA package inspection, file organization and signing preparation.">
+<title>Pluto Sign — iOS Workspace</title>
 <style>
 :root{color-scheme:dark;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#0b0715;color:#f7f2ff}
 *{box-sizing:border-box}
-body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at top,#2a1550 0%,#0b0715 58%)}
-main{width:min(100%,540px);padding:30px;border:1px solid #ffffff18;border-radius:26px;background:#160f27;box-shadow:0 24px 80px #0008}
-.brand{font-size:14px;letter-spacing:.22em;font-weight:800;color:#c69cff}
-h1{font-size:34px;line-height:1.05;margin:12px 0}
-p{line-height:1.65;color:#c9bfd9}
-a.download{display:block;text-align:center;text-decoration:none;color:white;font-weight:750;padding:16px 18px;margin:24px 0 18px;border-radius:14px;background:linear-gradient(100deg,#8855e8,#c16be8)}
-.steps{padding:16px;border-radius:16px;background:#211735}
-li{margin:10px 0;color:#e5dcef;line-height:1.5}
-.note{font-size:13px;color:#a99dbb}
+body{margin:0;min-height:100vh;padding:28px 16px 44px;background:radial-gradient(ellipse at 50% -10%,#38205f 0%,#151025 38%,#0b0715 76%)}
+main{width:min(100%,760px);margin:0 auto}
+.top{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:26px}
+.brand{font-size:13px;letter-spacing:.25em;font-weight:900;color:#d1b1ff}
+.version{font-size:11px;color:#bcaed0;border:1px solid #ffffff1c;padding:7px 10px;border-radius:999px}
+.hero{padding:30px;border-radius:28px;border:1px solid #ffffff20;background:linear-gradient(135deg,#38205e,#21133e 58%,#151027);box-shadow:0 24px 80px #0008}
+.eyebrow{font-size:11px;letter-spacing:.18em;color:#e3c8ff;font-weight:800}
+h1{font-size:clamp(36px,8vw,54px);line-height:1;margin:16px 0 13px;letter-spacing:-.045em}
+p{line-height:1.65;color:#c9bfd9;margin:0}
+.hero p{max-width:570px}
+.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:24px}
+a{color:#d4b8ff}
+a.primary,a.secondary{display:inline-flex;justify-content:center;align-items:center;gap:9px;text-align:center;text-decoration:none;font-weight:800;padding:14px 17px;border-radius:14px}
+a.primary{color:white;background:linear-gradient(100deg,#8855e8,#c16be8);box-shadow:0 10px 26px #8855e833}
+a.secondary{color:#e9dcff;border:1px solid #ffffff27;background:#ffffff09}
+.section-title{margin:30px 0 13px;font-size:12px;letter-spacing:.16em;color:#d7b9ff;font-weight:850}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.card{padding:17px;border-radius:18px;border:1px solid #ffffff15;background:linear-gradient(145deg,#1c1430,#120d20)}
+.icon{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:#8855e829;color:#dfbaff;font-size:19px}
+h2{font-size:16px;margin:13px 0 5px}
+.card p{font-size:13px}
+.install{padding:20px;border-radius:20px;background:#1a132b;border:1px solid #ffffff17}
+ol{padding-left:21px;margin:12px 0 0;color:#e6dcef}
+li{margin:10px 0;line-height:1.55}
+.note{font-size:12px;color:#a99dbb;margin-top:15px}
+footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:24px;font-size:12px;color:#988ba9}
+@media(max-width:520px){.grid{grid-template-columns:1fr}.hero{padding:23px}.top{margin-bottom:18px}}
 </style>
 </head>
 <body>
 <main>
-  <div class="brand">PLUTO SIGN</div>
-  <h1>Home Screen profile</h1>
-  <p>Download the Pluto Sign configuration profile to add a removable website shortcut to your iPhone Home Screen.</p>
-  <a class="download" href="./pluto-sign-home.mobileconfig">Download configuration profile</a>
-  <section class="steps">
-    <strong>On your iPhone</strong>
+  <header class="top">
+    <div class="brand">PLUTO SIGN</div>
+    <div class="version">iOS WORKSPACE</div>
+  </header>
+
+  <section class="hero">
+    <div class="eyebrow">PACKAGE MANAGEMENT • SIGNING PREPARATION</div>
+    <h1>Your IPA<br>workspace.</h1>
+    <p>Keep app packages, archive contents, documents and your own signing assets organized in one focused workspace.</p>
+    <div class="actions">
+      <a class="primary" href="./pluto-sign-home.mobileconfig">↓ Download Home Screen Profile</a>
+      <a class="secondary" href="https://github.com/BlueDiamond61/PLuto-sign/tree/main/ios">View iOS source ↗</a>
+    </div>
+  </section>
+
+  <div class="section-title">WORKSPACE FEATURES</div>
+  <section class="grid">
+    <article class="card">
+      <div class="icon">▣</div>
+      <h2>IPA Library</h2>
+      <p>Import IPA packages, inspect app metadata, search your library and share original files.</p>
+    </article>
+    <article class="card">
+      <div class="icon">⌕</div>
+      <h2>Archive Explorer</h2>
+      <p>Browse package folders and search file paths, dylibs, frameworks, plists and readable text.</p>
+    </article>
+    <article class="card">
+      <div class="icon">▤</div>
+      <h2>Files Workspace</h2>
+      <p>Import and organize general documents separately from IPA packages and signing assets.</p>
+    </article>
+    <article class="card">
+      <div class="icon">⚿</div>
+      <h2>Signing Assets</h2>
+      <p>Import your own P12/PFX identity into Keychain and keep provisioning profiles in app storage.</p>
+    </article>
+    <article class="card">
+      <div class="icon">✓</div>
+      <h2>Signing Preparation</h2>
+      <p>Select an IPA, certificate and profile, check the required inputs and export a signing request.</p>
+    </article>
+    <article class="card">
+      <div class="icon">↻</div>
+      <h2>Version Tools</h2>
+      <p>Audit embedded bundle versions and create a separate package with updated app and extension metadata.</p>
+    </article>
+  </section>
+
+  <div class="section-title">INSTALL THE HOME SCREEN SHORTCUT</div>
+  <section class="install">
+    <strong>On your iPhone using Safari</strong>
     <ol>
-      <li>Open this page in Safari.</li>
-      <li>Tap <strong>Download configuration profile</strong>, then tap <strong>Allow</strong> when iOS asks.</li>
+      <li>Tap <strong>Download Home Screen Profile</strong> above.</li>
+      <li>Tap <strong>Allow</strong> when iOS asks to download the configuration profile.</li>
       <li>Open <strong>Settings</strong> and tap <strong>Profile Downloaded</strong>.</li>
       <li>Review the profile and tap <strong>Install</strong> to add the Pluto Sign website shortcut.</li>
     </ol>
   </section>
-  <p class="note">This profile adds only a removable Home Screen web shortcut to this project page. It does not install a certificate, change trust settings, enroll device management, or make unsigned apps installable. You can remove it later in Settings → General → VPN &amp; Device Management.</p>
-  <p class="note"><a href="https://github.com/BlueDiamond61/PLuto-sign" style="color:#c69cff">View source on GitHub</a></p>
+
+  <p class="note">Important: the .mobileconfig profile adds only a removable website shortcut. It does not install the native iOS app, add certificates, configure VPN or device management, sign apps, or make unsigned IPA packages installable. The iOS project is source code; the current automated artifact targets iOS Simulator and is not an installable iPhone IPA. Actual signing and device distribution require an authorized Apple workflow.</p>
+
+  <footer>
+    <span>Pluto Sign • iOS workspace</span>
+    <a href="https://github.com/BlueDiamond61/PLuto-sign">GitHub repository</a>
+  </footer>
 </main>
 </body>
 </html>
