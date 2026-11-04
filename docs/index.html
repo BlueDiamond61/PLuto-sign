@@ -105,7 +105,7 @@ textarea.preview{font:11px/1.55 ui-monospace,SFMono-Regular,monospace;background
 #compatPanel .compat-finding p{margin:5px 0 0;font-size:11px;color:var(--muted)}
 #archivePanel.compat-mode #archiveBrowser{display:none}
 #filePreview{margin:12px 0;max-height:65vh;overflow:auto}
-#filePreview pre{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font:11px/1.55 ui-monospace,SFMono-Regular,monospace}
+#filePreview pre{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font:11px/1.55 ui-monospace,SFMono-Regular,monospace}#filePreview .preview-text{display:block;width:100%;min-height:180px;max-height:48vh;resize:vertical;white-space:pre;overflow:auto;user-select:text;-webkit-user-select:text;font:11px/1.55 ui-monospace,SFMono-Regular,monospace;color:#f7f1ff;background:#090611;border:1px solid var(--line);border-radius:10px;padding:11px}#archiveBulkControls{align-items:center;margin:9px 0}#archiveSelectionCount{font-size:11px;color:var(--muted)}.archive-select{display:flex;align-items:center;padding:3px 5px}.archive-select input{width:18px;height:18px;accent-color:#a77afa}.archiveitem.selected{background:#9b6cff18;border-radius:10px}.preview-actions{display:flex;flex-wrap:wrap;gap:7px;margin:9px 0}
 #filePreview img{display:block;max-width:100%;max-height:60vh;object-fit:contain;margin:10px auto;border-radius:10px}.multi-window-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px}.multi-pane{min-width:0;border:1px solid #ffffff20;border-radius:15px;padding:12px;background:#100b1d}.multi-pane h4{font-size:13px;margin:0 0 8px;color:#eadcff}.multi-pane .search{margin:8px 0}.multi-pane-list{max-height:42vh;min-height:150px;overflow:auto;border:1px solid var(--line);border-radius:11px;background:#090611}.multi-pane .archiveitem{padding:9px;gap:7px}.multi-pane .archiveitem button{flex-shrink:0}.multi-pane-preview{margin-top:9px;max-height:36vh;overflow:auto}.multi-pane-preview img{display:block;max-width:100%;max-height:32vh;object-fit:contain;margin:8px auto;border-radius:9px}@media(max-width:700px){.multi-window-grid{grid-template-columns:minmax(260px,86vw) minmax(260px,86vw);overflow-x:auto;padding-bottom:8px;scroll-snap-type:x mandatory}.multi-pane{scroll-snap-align:start}.multi-pane-list{max-height:45vh}}
 .filepreview-head{font-size:12px;font-weight:800;color:#e7d6ff;margin-bottom:7px;overflow-wrap:anywhere}
 @media(max-width:620px){#compatPanel .compat-top{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -212,6 +212,7 @@ textarea.preview{font:11px/1.55 ui-monospace,SFMono-Regular,monospace;background
     </div>
     <div id="archiveBrowser">
       <input class="search" id="archiveSearch" type="search" placeholder="Search archive file paths…" style="margin-top:12px">
+      <div class="actions" id="archiveBulkControls"><button class="quiet smallbtn" id="selectAllArchive">Select all shown</button><button class="secondary smallbtn" id="clearArchiveSelection" disabled>Clear selection</button><button class="danger smallbtn" id="deleteSelectedArchive" disabled>Delete selected (0)</button><span id="archiveSelectionCount">0 selected</span></div>
       <div class="breadcrumb" id="breadcrumbs"></div>
       <div id="filePreview" class="preview" hidden></div>
       <div id="archiveList"></div>
@@ -931,6 +932,14 @@ async function openMainAppFolder(){
  $("archiveList").scrollIntoView({behavior:"smooth",block:"nearest"});
 }
 $("openAppFolder").addEventListener("click",()=>openMainAppFolder().catch(err=>toast("Could not open app folder: "+err.message)));
+const selectedArchivePaths=new Set();
+function updateArchiveSelectionUI(){
+ const count=selectedArchivePaths.size;
+ $("archiveSelectionCount").textContent=count+" selected";
+ $("clearArchiveSelection").disabled=count===0;
+ $("deleteSelectedArchive").disabled=count===0;
+ $("deleteSelectedArchive").textContent="Delete selected ("+count+")";
+}
 function renderArchive(){
  const q=$("archiveSearch").value.trim().toLowerCase(),prefix=state.archivePath?state.archivePath+"/":"";
  $("breadcrumbs").innerHTML='<button data-path="">Payload root</button>'+state.archivePath.split("/").filter(Boolean).map((part,i,all)=>'<span>›</span><button data-path="'+escapeHTML(all.slice(0,i+1).join("/"))+'">'+escapeHTML(part)+'</button>').join("");
@@ -942,18 +951,71 @@ function renderArchive(){
   state.archiveNames.forEach(n=>{if(!n.startsWith(prefix))return;const rest=n.slice(prefix.length);if(!rest)return;const parts=rest.split("/");const isFolder=parts.length>1;const child=prefix+parts[0];if(!rows.has(child))rows.set(child,{path:child,name:parts[0],folder:isFolder});});
  }
  const list=Array.from(rows.values()).sort((a,b)=>a.folder===b.folder?a.name.localeCompare(b.name):a.folder?-1:1);
- $("archiveList").innerHTML=list.length?list.map(r=>'<div class="archiveitem"><div class="row grow"><span>'+(r.folder?"📁":"📄")+'</span><div class="grow"><div class="rowtitle">'+escapeHTML(r.name)+'</div><div class="rowdetail">'+escapeHTML(r.path)+'</div></div></div><button data-entry="'+escapeHTML(r.path)+'" data-folder="'+r.folder+'">'+(r.folder?"Open":"Preview")+'</button></div>').join(""):'<div class="empty">No matching entries in this folder.</div>';
+ $("archiveList").innerHTML=list.length?list.map(r=>'<div class="archiveitem'+(selectedArchivePaths.has(r.path)?" selected":"")+'"><div class="row grow"><label class="archive-select" aria-label="Select '+escapeHTML(r.name)+'"><input type="checkbox" data-select-archive="'+escapeHTML(r.path)+'" '+(selectedArchivePaths.has(r.path)?"checked":"")+'></label><span>'+(r.folder?"📁":"📄")+'</span><div class="grow"><div class="rowtitle">'+escapeHTML(r.name)+'</div><div class="rowdetail">'+escapeHTML(r.path)+'</div></div></div><button data-entry="'+escapeHTML(r.path)+'" data-folder="'+r.folder+'">'+(r.folder?"Open":"Preview")+'</button></div>').join(""):'<div class="empty">No matching entries in this folder.</div>';
+ $("archiveList").querySelectorAll("[data-select-archive]").forEach(box=>box.addEventListener("change",()=>{
+  if(box.checked)selectedArchivePaths.add(box.dataset.selectArchive);else selectedArchivePaths.delete(box.dataset.selectArchive);
+  box.closest(".archiveitem").classList.toggle("selected",box.checked);updateArchiveSelectionUI();
+ }));
  $("archiveList").querySelectorAll("[data-entry]").forEach(b=>b.addEventListener("click",()=>{if(b.dataset.folder==="true"){state.archivePath=b.dataset.entry;renderArchive();}else previewEntry(b.dataset.entry);}));
+ updateArchiveSelectionUI();
 }
+async function persistArchiveChanges(item){
+ item.modified=true;
+ item.names=Object.keys(item.zip.files).filter(n=>!item.zip.files[n].dir);
+ state.archiveNames=item.names;
+ $("exportModified").hidden=false;
+ $("modifiedBadge").innerHTML='<span class="badge warn">Modified · original signature invalid</span>';
+ $("archiveSubtitle").textContent=item.file.name+" · "+item.names.length+" files · modified copy";
+ renderIPAs();refreshSigning();renderMultiWindows();
+ try{
+  await saveIPARecord(item,true);
+  renderIPAs();refreshSigning();renderMultiWindows();
+  toast("Changes saved locally. The IPA signature is invalid; export and re-sign through an authorized workflow.");
+ }catch(error){
+  toast("Changes are in memory but local save failed: "+error.message+" Export the modified IPA before leaving.");
+ }
+}
+async function deleteArchiveEntries(paths){
+ const item=currentArchive();if(!item||!paths.length)return;
+ const normalized=paths.filter(path=>!paths.some(parent=>parent!==path&&path.startsWith(parent+"/")));
+ const existing=normalized.filter(path=>item.names.some(name=>name===path||name.startsWith(path+"/"))||!!item.zip.files[path]);
+ if(!existing.length){toast("No selected archive entries were found.");return;}
+ const message="Delete "+existing.length+" selected entr"+(existing.length===1?"y":"ies")+" from "+item.app+"? Folder selections remove everything inside those folders. This changes the IPA copy and invalidates its original signature.";
+ if(!window.confirm(message))return;
+ const removed=existing.slice();
+ for(const path of removed)item.zip.remove(path);
+ selectedArchivePaths.clear();
+ if(removed.some(path=>state.archivePath===path||state.archivePath.startsWith(path+"/")))state.archivePath="";
+ if(state.previewPath&&removed.some(path=>state.previewPath===path||state.previewPath.startsWith(path+"/"))){
+  state.previewPath=null;
+  if(archivePreviewURL){URL.revokeObjectURL(archivePreviewURL);archivePreviewURL=null;}
+  $("filePreview").hidden=true;$("filePreview").replaceChildren();
+ }
+ await persistArchiveChanges(item);
+ renderArchive();
+}
+$("selectAllArchive").addEventListener("click",()=>{
+ $("archiveList").querySelectorAll("[data-select-archive]").forEach(box=>{box.checked=true;selectedArchivePaths.add(box.dataset.selectArchive);box.closest(".archiveitem").classList.add("selected");});
+ updateArchiveSelectionUI();
+});
+$("clearArchiveSelection").addEventListener("click",()=>{selectedArchivePaths.clear();renderArchive();});
+$("deleteSelectedArchive").addEventListener("click",()=>deleteArchiveEntries(Array.from(selectedArchivePaths)));
 $("archiveSearch").addEventListener("input",renderArchive);
 let archivePreviewURL=null;
 async function previewEntry(path){
  const item=currentArchive(),out=$("filePreview");
  if(!item||!out)return;
  const entry=item.zip.file(path);if(!entry)return;
+ state.previewPath=path;
  if(archivePreviewURL){URL.revokeObjectURL(archivePreviewURL);archivePreviewURL=null;}
  out.replaceChildren();out.hidden=false;
  const heading=document.createElement("div");heading.className="filepreview-head";heading.textContent=path;out.appendChild(heading);
+ const actions=document.createElement("div");actions.className="preview-actions";
+ const download=document.createElement("button");download.className="secondary smallbtn";download.textContent="Download original file";
+ download.addEventListener("click",async()=>{try{downloadBlob(await entry.async("blob"),path.split("/").pop());}catch(error){toast("Download failed: "+error.message);}});
+ const remove=document.createElement("button");remove.className="danger smallbtn";remove.textContent="Delete this item";
+ remove.addEventListener("click",()=>deleteArchiveEntries([path]));
+ actions.append(download,remove);out.appendChild(actions);
  const ext=(path.split(".").pop()||"").toLowerCase();
  try{
   const imageTypes={png:"image/png",jpg:"image/jpeg",jpeg:"image/jpeg",gif:"image/gif",webp:"image/webp",bmp:"image/bmp",heic:"image/heic"};
@@ -965,21 +1027,19 @@ async function previewEntry(path){
   }else if(["txt","json","xml","plist","strings","md","csv","html","css","js","yaml","yml","ini","cfg","conf","log","entitlements"].includes(ext)){
    if(entry._data&&entry._data.uncompressedSize>4*1024*1024)throw new Error("This text file exceeds the 4 MB preview limit.");
    let text;
-   if(ext==="plist"){
-    const buffer=await entry.async("arraybuffer");
-    const value=parsePlistFull(buffer);
-    text=JSON.stringify(value,null,2);
-   }else if(ext==="json"){
-    const raw=await entry.async("string");
-    try{text=JSON.stringify(JSON.parse(raw),null,2);}catch(e){text=raw;}
-   }else text=await entry.async("string");
-   const pre=document.createElement("pre");pre.textContent=text.slice(0,150000);
-   if(text.length>150000)pre.textContent+="\n\n[Preview truncated at 150,000 characters.]";
-   out.appendChild(pre);
-   const note=document.createElement("div");note.className="rowdetail";note.textContent=sizeText(text.length)+" · text preview";out.appendChild(note);
+   if(ext==="plist")text=JSON.stringify(parsePlistFull(await entry.async("arraybuffer")),null,2);
+   else if(ext==="json"){const raw=await entry.async("string");try{text=JSON.stringify(JSON.parse(raw),null,2);}catch(e){text=raw;}}
+   else text=await entry.async("string");
+   const area=document.createElement("textarea");area.className="preview-text";area.readOnly=true;area.spellcheck=false;area.setAttribute("aria-label","Read-only text preview");area.value=text.slice(0,150000);
+   if(text.length>150000)area.value+="\n\n[Preview truncated at 150,000 characters.]";
+   out.appendChild(area);
+   const copy=document.createElement("button");copy.className="quiet smallbtn";copy.textContent="Copy text";
+   copy.addEventListener("click",async()=>{try{await navigator.clipboard.writeText(area.value);toast("Preview text copied.");}catch(error){area.focus();area.select();try{document.execCommand("copy");toast("Preview text selected for copying.");}catch(e){toast("Select the text and copy it manually.");}}});
+   actions.insertBefore(copy,remove);
+   const note=document.createElement("div");note.className="rowdetail";note.textContent=sizeText(text.length)+" · selectable read-only text preview";out.appendChild(note);
   }else{
    const message=document.createElement("div");message.className="callout";
-   message.textContent="This is a binary or executable file ("+sizeText(entry._data&&entry._data.uncompressedSize||0)+"). Pluto Sign can list the file and preview supported assets, but it does not display or disassemble executable code.";
+   message.textContent="This is a binary or executable file ("+sizeText(entry._data&&entry._data.uncompressedSize||0)+"). You can download or remove the file, but Pluto Sign does not display or disassemble executable code.";
    out.appendChild(message);
   }
  }catch(err){
