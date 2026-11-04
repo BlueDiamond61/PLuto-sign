@@ -107,7 +107,7 @@ textarea.preview{font:11px/1.55 ui-monospace,SFMono-Regular,monospace;background
 #filePreview{margin:12px 0;max-height:65vh;overflow:auto}
 #filePreview pre{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;font:11px/1.55 ui-monospace,SFMono-Regular,monospace}#filePreview .preview-text{display:block;width:100%;min-height:180px;max-height:48vh;resize:vertical;white-space:pre;overflow:auto;user-select:text;-webkit-user-select:text;font:11px/1.55 ui-monospace,SFMono-Regular,monospace;color:#f7f1ff;background:#090611;border:1px solid var(--line);border-radius:10px;padding:11px}#archiveBulkControls{align-items:center;margin:9px 0}#archiveSelectionCount{font-size:11px;color:var(--muted)}.archive-select{display:flex;align-items:center;padding:3px 5px}.archive-select input{width:18px;height:18px;accent-color:#a77afa}.archiveitem.selected{background:#9b6cff18;border-radius:10px}.preview-actions{display:flex;flex-wrap:wrap;gap:7px;margin:9px 0}
 #filePreview img{display:block;max-width:100%;max-height:60vh;object-fit:contain;margin:10px auto;border-radius:10px}.multi-window-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px}.multi-pane{min-width:0;border:1px solid #ffffff20;border-radius:15px;padding:12px;background:#100b1d}.multi-pane h4{font-size:13px;margin:0 0 8px;color:#eadcff}.multi-pane .search{margin:8px 0}.multi-pane-list{max-height:42vh;min-height:150px;overflow:auto;border:1px solid var(--line);border-radius:11px;background:#090611}.multi-pane .archiveitem{padding:9px;gap:7px}.multi-pane .archiveitem button{flex-shrink:0}.multi-pane-preview{margin-top:9px;max-height:36vh;overflow:auto}.multi-pane-preview img{display:block;max-width:100%;max-height:32vh;object-fit:contain;margin:8px auto;border-radius:9px}@media(max-width:700px){.multi-window-grid{grid-template-columns:minmax(260px,86vw) minmax(260px,86vw);overflow-x:auto;padding-bottom:8px;scroll-snap-type:x mandatory}.multi-pane{scroll-snap-align:start}.multi-pane-list{max-height:45vh}}
-.filepreview-head{font-size:12px;font-weight:800;color:#e7d6ff;margin-bottom:7px;overflow-wrap:anywhere}
+.filepreview-head{font-size:12px;font-weight:800;color:#e7d6ff;margin-bottom:7px;overflow-wrap:anywhere}.preview-text{display:block;width:100%;min-height:230px;max-height:58vh;resize:vertical;white-space:pre;overflow:auto;user-select:text;-webkit-user-select:text;touch-action:pan-y;font:12px/1.55 ui-monospace,SFMono-Regular,monospace;color:#f7f1ff;background:#090611;border:1px solid var(--line);border-radius:10px;padding:12px}
 @media(max-width:620px){#compatPanel .compat-top{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .offset{font:11px ui-monospace,SFMono-Regular,monospace;color:#e7d6ff}
 .toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);padding:12px 16px;background:#34224d;border:1px solid #ffffff30;border-radius:12px;box-shadow:0 10px 32px #0008;font-size:12px;z-index:20;display:none;max-width:90vw}
@@ -119,7 +119,7 @@ textarea.preview{font:11px/1.55 ui-monospace,SFMono-Regular,monospace;background
 <header class="top">
   <img class="logo" src="./pluto-icon.png" alt="Pluto Sign">
   <div><div class="brand">PLUTO SIGN</div><div class="tagline">IPA & signing workspace</div></div>
-  <div class="topspacer"></div><span class="pill">WEB EDITION</span>
+  <div class="topspacer"></div><a class="secondary smallbtn" href="https://github.com/BlueDiamond61/PLuto-sign" target="_blank" rel="noopener noreferrer">GitHub Source</a><span class="pill">WEB EDITION</span>
 </header>
 
 <section class="hero">
@@ -223,6 +223,7 @@ textarea.preview{font:11px/1.55 ui-monospace,SFMono-Regular,monospace;background
 <section class="view" id="files">
   <div class="viewhead"><div><h2>Files</h2><p class="sub">Import documents from Files. IPA and signing files are routed to their own tabs.</p></div><button class="primary" id="importGeneral">＋ Import from Files</button></div>
   <div class="stack" id="generalFiles"><div class="empty"><b>No general files imported</b>Use Import from Files to add documents.</div></div>
+  <div class="card" id="ipaFilesFolder" style="margin-top:14px"><div class="row"><div class="iconbox">📁</div><div class="grow"><h3>IPA Files Folder</h3><p class="sub">Prepare a ZIP of an imported IPA’s contents, then use the iOS share sheet to save it in Files.</p></div></div><div class="callout" style="margin:10px 0">Safari cannot silently create folders in Files. Choose “Save to Files” from the iOS share sheet, then select or create a folder such as “Pluto Sign IPAs”.</div><div class="stack" id="ipaExportList"><div class="empty">Import an IPA to see its contents here.</div></div></div>
 </section>
 
 <section class="view" id="certs">
@@ -502,6 +503,7 @@ function renderIPAs(){
  const importButton=$("importRobloxIPA");
  if(importButton)importButton.addEventListener("click",()=>$("robloxPicker").click());
  renderMultiWindows();
+ renderIPAExportFolder();
 }
 function downloadBlob(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);}
 function downloadIPA(id){const x=byId(id);if(!x)return;if(x.modified){exportModifiedIPA(x);return;}downloadBlob(x.file,x.file.name);}
@@ -1011,9 +1013,9 @@ async function previewEntry(path){
  out.replaceChildren();out.hidden=false;
  const heading=document.createElement("div");heading.className="filepreview-head";heading.textContent=path;out.appendChild(heading);
  const actions=document.createElement("div");actions.className="preview-actions";
- const download=document.createElement("button");download.className="secondary smallbtn";download.textContent="Download original file";
+ const download=document.createElement("button");download.className="secondary smallbtn";download.textContent="Download original";
  download.addEventListener("click",async()=>{try{downloadBlob(await entry.async("blob"),path.split("/").pop());}catch(error){toast("Download failed: "+error.message);}});
- const remove=document.createElement("button");remove.className="danger smallbtn";remove.textContent="Delete this item";
+ const remove=document.createElement("button");remove.className="danger smallbtn";remove.textContent="Delete file";
  remove.addEventListener("click",()=>deleteArchiveEntries([path]));
  actions.append(download,remove);out.appendChild(actions);
  const ext=(path.split(".").pop()||"").toLowerCase();
@@ -1025,25 +1027,42 @@ async function previewEntry(path){
    const img=document.createElement("img");img.alt="Preview of "+path;img.src=archivePreviewURL;out.appendChild(img);
    const note=document.createElement("div");note.className="rowdetail";note.textContent=sizeText(blob.size)+" · image preview";out.appendChild(note);
   }else if(["txt","json","xml","plist","strings","md","csv","html","css","js","yaml","yml","ini","cfg","conf","log","entitlements"].includes(ext)){
-   if(entry._data&&entry._data.uncompressedSize>4*1024*1024)throw new Error("This text file exceeds the 4 MB preview limit.");
+   if(entry._data&&entry._data.uncompressedSize>4*1024*1024)throw new Error("This text file exceeds the 4 MB editor limit.");
    let text;
    if(ext==="plist")text=JSON.stringify(parsePlistFull(await entry.async("arraybuffer")),null,2);
    else if(ext==="json"){const raw=await entry.async("string");try{text=JSON.stringify(JSON.parse(raw),null,2);}catch(e){text=raw;}}
    else text=await entry.async("string");
-   const area=document.createElement("textarea");area.className="preview-text";area.readOnly=true;area.spellcheck=false;area.setAttribute("aria-label","Read-only text preview");area.value=text.slice(0,150000);
-   if(text.length>150000)area.value+="\n\n[Preview truncated at 150,000 characters.]";
+   const area=document.createElement("textarea");area.className="preview-text";area.readOnly=false;area.spellcheck=false;area.autocapitalize="off";area.setAttribute("autocorrect","off");area.setAttribute("autocomplete","off");area.setAttribute("aria-label","Editable file contents");area.value=text.slice(0,150000);
+   if(text.length>150000)area.value+="\n\n[Preview truncated at 150,000 characters. Only the visible first 150,000 characters can be saved.]";
    out.appendChild(area);
-   const copy=document.createElement("button");copy.className="quiet smallbtn";copy.textContent="Copy text";
-   copy.addEventListener("click",async()=>{try{await navigator.clipboard.writeText(area.value);toast("Preview text copied.");}catch(error){area.focus();area.select();try{document.execCommand("copy");toast("Preview text selected for copying.");}catch(e){toast("Select the text and copy it manually.");}}});
-   actions.insertBefore(copy,remove);
-   const note=document.createElement("div");note.className="rowdetail";note.textContent=sizeText(text.length)+" · selectable read-only text preview";out.appendChild(note);
+   const hint=document.createElement("div");hint.className="preview-keyboard-hint";hint.textContent="Tap the text to open your phone keyboard. Use Select All, then Backspace to clear selected text, or use the controls below.";out.appendChild(hint);
+   const selectAll=document.createElement("button");selectAll.className="quiet smallbtn";selectAll.textContent="Select all text";
+   selectAll.addEventListener("click",()=>{area.focus();area.setSelectionRange(0,area.value.length);});
+   const deleteSelection=document.createElement("button");deleteSelection.className="secondary smallbtn";deleteSelection.textContent="Delete selected text";
+   deleteSelection.addEventListener("click",()=>{const start=area.selectionStart,end=area.selectionEnd;if(start===end){toast("Select some text first, or use Clear all.");area.focus();return;}area.setRangeText("",start,end,"start");area.dispatchEvent(new Event("input",{bubbles:true}));area.focus();});
+   const clearAll=document.createElement("button");clearAll.className="danger smallbtn";clearAll.textContent="Clear all text";
+   clearAll.addEventListener("click",()=>{if(!window.confirm("Remove all text from this file? Save changes will write an empty file into the modified IPA copy."))return;area.value="";area.focus();area.setSelectionRange(0,0);});
+   const save=document.createElement("button");save.className="primary smallbtn";save.textContent="Save changes";
+   save.addEventListener("click",async()=>{
+    try{
+     let value=area.value;
+     if(text.length>150000)throw new Error("This file is too large for the editor preview. Download it to edit separately.");
+     if(ext==="json")JSON.parse(value);
+     if(ext==="plist")value=plistToXML(JSON.parse(value));
+     item.zip.file(path,value,{binary:false});
+     await persistArchiveChanges(item);
+     toast("Saved "+path+" into the modified IPA copy.");
+    }catch(error){toast("Could not save: "+error.message);}
+   });
+   actions.insertBefore(selectAll,remove);actions.insertBefore(deleteSelection,remove);actions.insertBefore(clearAll,remove);actions.insertBefore(save,remove);
+   const note=document.createElement("div");note.className="rowdetail";note.textContent=sizeText(text.length)+" · editable text · changes apply only after Save changes";out.appendChild(note);
   }else{
    const message=document.createElement("div");message.className="callout";
-   message.textContent="This is a binary or executable file ("+sizeText(entry._data&&entry._data.uncompressedSize||0)+"). You can download or remove the file, but Pluto Sign does not display or disassemble executable code.";
+   message.textContent="This is a binary or executable file ("+sizeText(entry._data&&entry._data.uncompressedSize||0)+"). You can download or remove the file, but Pluto Sign does not display or edit executable code.";
    out.appendChild(message);
   }
  }catch(err){
-  const message=document.createElement("div");message.className="callout";message.textContent="Could not preview this file: "+err.message;out.appendChild(message);
+  const message=document.createElement("div");message.className="callout";message.textContent="Could not open preview: "+err.message;out.appendChild(message);
  }
  out.scrollIntoView({behavior:"smooth",block:"nearest"});
 }
@@ -1145,6 +1164,41 @@ $("multiSelectA").addEventListener("change",e=>setMultiIPA("a",e.target.value));
 $("multiSelectB").addEventListener("change",e=>setMultiIPA("b",e.target.value));
 $("multiSearchA").addEventListener("input",e=>{multiWindows.a.query=e.target.value;renderMultiPane("a");});
 $("multiSearchB").addEventListener("input",e=>{multiWindows.b.query=e.target.value;renderMultiPane("b");});
+
+const pendingIPAExports=new Map();
+function renderIPAExportFolder(){
+ const target=$("ipaExportList");if(!target)return;
+ if(!state.ipas.length){target.innerHTML='<div class="empty">Import an IPA to see its contents here.</div>';return;}
+ target.innerHTML=state.ipas.map(item=>{
+  const ready=pendingIPAExports.has(item.id);
+  return '<div class="fileline"><div class="iconbox">'+(isRobloxIPA(item)?"R":"▣")+'</div><div class="grow"><div class="filename">'+escapeHTML(isRobloxIPA(item)?"Roblox":item.app)+'</div><div class="filesize">'+escapeHTML(item.version)+" · "+item.names.length+" files · "+sizeText(item.size)+'</div></div><button class="quiet smallbtn" data-prepare-export="'+escapeHTML(item.id)+'">'+(ready?"Rebuild ZIP":"Prepare ZIP")+'</button><button class="primary smallbtn" data-save-files="'+escapeHTML(item.id)+'" '+(ready?"":"disabled")+'>Save to Files</button></div>';
+ }).join("");
+ target.querySelectorAll("[data-prepare-export]").forEach(button=>button.addEventListener("click",()=>prepareIPAContents(button.dataset.prepareExport,button)));
+ target.querySelectorAll("[data-save-files]").forEach(button=>button.addEventListener("click",()=>shareIPAContents(button.dataset.saveFiles)));
+}
+async function prepareIPAContents(id,button){
+ const item=byId(id);if(!item)return;
+ button.disabled=true;button.textContent="Preparing…";
+ try{
+  const blob=await item.zip.generateAsync({type:"blob",mimeType:"application/zip",compression:"DEFLATE",compressionOptions:{level:1}},meta=>{button.textContent="ZIP "+Math.round(meta.percent)+"%";});
+  const base=(isRobloxIPA(item)?"Roblox":item.app).replace(/[^a-z0-9._-]+/gi,"-").replace(/^-+|-+$/g,"")||"IPA";
+  const file=new File([blob],base+"-IPA-Contents.zip",{type:"application/zip",lastModified:Date.now()});
+  pendingIPAExports.set(id,file);
+  toast("ZIP ready. Tap Save to Files to open the iOS share sheet.");
+ }catch(error){toast("Could not prepare IPA contents: "+error.message);}
+ finally{button.disabled=false;button.textContent=pendingIPAExports.has(id)?"Rebuild ZIP":"Prepare ZIP";renderIPAExportFolder();}
+}
+function shareIPAContents(id){
+ const file=pendingIPAExports.get(id);if(!file){toast("Prepare the ZIP first.");return;}
+ if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
+  try{
+   navigator.share({files:[file],title:"Save IPA contents",text:"Choose Save to Files and select your Pluto Sign IPAs folder."}).then(()=>toast("Share sheet opened."),error=>{if(error&&error.name!=="AbortError")toast("Share unavailable: "+error.message);});
+  }catch(error){toast("Could not open iOS share sheet: "+error.message);}
+ }else{
+  downloadBlob(file,file.name);
+  toast("ZIP downloaded. Open Downloads, then use Share → Save to Files.");
+ }
+}
 
 $("ipaSearch").addEventListener("input",renderIPAs);
 function routeFile(file){
