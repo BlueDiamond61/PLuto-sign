@@ -474,17 +474,30 @@ async function importIPAs(files){
  }
  updateCounts();renderIPAs();refreshSigning();showTab("ipas");
 }
+function isRobloxIPA(item){
+ return String(item&&item.bundle||"").toLowerCase()==="com.roblox.robloxmobile";
+}
 function renderIPAs(){
  const q=$("ipaSearch").value.trim().toLowerCase();
- const items=state.ipas.filter(x=>(x.app+" "+x.bundle+" "+x.version+" "+x.file.name).toLowerCase().includes(q));
- $("ipaList").innerHTML=items.length?items.map(x=>'<div class="card"><div class="row"><div class="iconbox">▣</div><div class="grow"><div class="rowtitle">'+escapeHTML(x.app)+'</div><div class="rowdetail">'+escapeHTML(x.bundle)+'</div><div class="rowdetail">v'+escapeHTML(x.version)+' · build '+escapeHTML(x.build)+' · '+sizeText(x.size)+'</div></div><span class="badge '+(x.modified?'warn':'good')+'">'+(x.modified?'Modified · signature invalid':(x.saved?'Saved on this device':'Not saved'))+'</span></div><div class="actions"><button class="primary smallbtn" data-open="'+x.id+'">Browse IPA</button><button class="secondary smallbtn" data-share="'+x.id+'">Share IPA</button><button class="danger smallbtn" data-removeipa="'+x.id+'">Remove</button></div></div>').join(''):'<div class="empty"><b>No matching IPA packages</b>Choose an IPA file from Files to add it to this session.</div>';
+ const items=state.ipas.filter(x=>(x.app+" "+x.bundle+" "+x.version+" "+x.file.name+" "+(isRobloxIPA(x)?"roblox.ipa Roblox Roblox.com":"")).toLowerCase().includes(q));
+ const cards=items.map(x=>{
+  const roblox=isRobloxIPA(x),label=roblox?"Roblox":x.app,filename=roblox?"roblox.ipa":x.file.name;
+  const original=roblox&&x.file.name.toLowerCase()!=="roblox.ipa"?" · imported as "+escapeHTML(x.file.name):"";
+  return '<div class="card"><div class="row"><div class="iconbox">'+(roblox?"R":"▣")+'</div><div class="grow"><div class="rowtitle">'+escapeHTML(label)+'</div><div class="rowdetail">'+escapeHTML(filename)+original+'</div><div class="rowdetail">'+escapeHTML(x.bundle)+'</div><div class="rowdetail">v'+escapeHTML(x.version)+' · build '+escapeHTML(x.build)+' · '+sizeText(x.size)+'</div></div><span class="badge '+(x.modified?"warn":(x.saved?"good":"warn"))+'">'+(x.modified?"Modified · signature invalid":(x.saved?"Saved on this device":"Not saved"))+'</span></div><div class="actions"><button class="primary smallbtn" data-open="'+x.id+'">Browse files</button><button class="secondary smallbtn" data-share="'+x.id+'">Export IPA</button><button class="danger smallbtn" data-removeipa="'+x.id+'">Remove</button></div></div>';
+ }).join("");
+ const hasRoblox=state.ipas.some(isRobloxIPA);
+ const showRobloxSlot=!hasRoblox&&(!q||"roblox roblox.ipa roblox.com".includes(q));
+ const slot=showRobloxSlot?'<div class="card"><div class="row"><div class="iconbox">R</div><div class="grow"><div class="rowtitle">Roblox</div><div class="rowdetail">roblox.ipa · Official app package slot</div><div class="rowdetail">No actual Roblox IPA has been imported.</div></div><span class="badge warn">Import required</span></div><div class="actions"><button class="primary smallbtn" id="importRobloxIPA">Import Roblox IPA</button><a class="secondary smallbtn" href="https://www.roblox.com/" target="_blank" rel="noopener noreferrer">Open Roblox.com</a><a class="secondary smallbtn" href="https://apps.apple.com/us/app/roblox/id431946152" target="_blank" rel="noopener noreferrer">App Store</a></div><p class="hint" style="font-size:11px;margin-top:9px">This is a shortcut, not a downloaded IPA. Import a real Roblox .ipa file to browse its packaged files.</p></div>':"";
+ $("ipaList").innerHTML=cards+slot+(!cards&&!slot?'<div class="empty"><b>No matching IPA packages</b>Choose an IPA file from your device to add it to this session.</div>':"");
  $("ipaList").querySelectorAll("[data-open]").forEach(b=>b.addEventListener("click",()=>openArchive(b.dataset.open)));
  $("ipaList").querySelectorAll("[data-share]").forEach(b=>b.addEventListener("click",()=>downloadIPA(b.dataset.share)));
  $("ipaList").querySelectorAll("[data-removeipa]").forEach(b=>b.addEventListener("click",()=>{const removedId=b.dataset.removeipa;state.ipas=state.ipas.filter(x=>x.id!==removedId);removeSavedIPA(removedId).catch(err=>toast("Local deletion failed: "+err.message));if(state.archiveId===removedId)closeArchive();updateCounts();renderIPAs();refreshSigning();renderRobloxMonitor();}));
+ const importButton=$("importRobloxIPA");
+ if(importButton)importButton.addEventListener("click",()=>$("ipaPicker").click());
 }
 function downloadBlob(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);}
 function downloadIPA(id){const x=byId(id);if(!x)return;if(x.modified){exportModifiedIPA(x);return;}downloadBlob(x.file,x.file.name);}
-function openArchive(id){const x=byId(id);if(!x)return;state.archiveId=id;state.archiveZip=x.zip;state.archiveNames=x.names;state.archivePath="";$("archivePanel").hidden=false;$("archiveTitle").textContent=x.app;$("archiveSubtitle").textContent=x.file.name+" · "+x.names.length+" files";$("archiveSearch").value="";$("filePreview").hidden=true;renderArchive();$("archivePanel").scrollIntoView({behavior:"smooth",block:"start"});}
+function openArchive(id){const x=byId(id);if(!x)return;state.archiveId=id;state.archiveZip=x.zip;state.archiveNames=x.names;state.archivePath="";$("archivePanel").hidden=false;$("archivePanel").classList.remove("compat-mode");$("compatPanel").hidden=true;$("plistEditor").hidden=true;$("dylibPanel").hidden=true;$("archiveTitle").textContent=isRobloxIPA(x)?"Roblox · roblox.ipa":x.app;$("archiveSubtitle").textContent=x.file.name+" · "+x.names.length+" files";$("archiveSearch").value="";$("filePreview").hidden=true;$("filePreview").replaceChildren();renderArchive();$("archivePanel").scrollIntoView({behavior:"smooth",block:"start"});}
 function closeArchive(){state.archiveId=null;state.archiveZip=null;$("archivePanel").hidden=true;$("plistEditor").hidden=true;$("dylibPanel").hidden=true;$("compatPanel").hidden=true;$("archivePanel").classList.remove("compat-mode");state.compatReport=null;}
 $("closeArchive").addEventListener("click",closeArchive);
 $("closePlist").addEventListener("click",()=>{$("plistEditor").hidden=true;});
@@ -811,7 +824,7 @@ const ROBLOX_APP_STORE_ID=431946152;
 const ROBLOX_BUNDLE_ID="com.roblox.robloxmobile";
 const ROBLOX_APP_STORE_URL="https://apps.apple.com/us/app/roblox/id431946152";
 function savedRobloxIPAs(){
- return state.ipas.filter(x=>String(x.bundle||"").toLowerCase()===ROBLOX_BUNDLE_ID).sort((a,b)=>{
+ return state.ipas.filter(isRobloxIPA).sort((a,b)=>{
   const cmp=compareVersions(b.version,a.version);return cmp===null?0:cmp;
  });
 }
@@ -839,8 +852,8 @@ function renderRobloxMonitor(){
  else $("robloxDetails").textContent="Your saved IPA version "+item.version+" is ahead of the App Store listing "+cached.version+". Confirm its source. "+history;
 }
 function openLatestRobloxFiles(){
- const item=findRobloxIPA();if(!item){toast("Import a Roblox IPA first.");return;}
- openArchive(item.id);openMainAppFolder();
+ const item=findRobloxIPA();if(!item){toast("Import the actual Roblox IPA first; Roblox.com and the App Store listing are not IPA archives.");showTab("ipas");return;}
+ openArchive(item.id);openMainAppFolder().catch(err=>toast("Could not open Roblox files: "+err.message));
 }
 $("viewRobloxFiles").addEventListener("click",openLatestRobloxFiles);
 
@@ -884,23 +897,33 @@ setInterval(()=>{if(document.visibilityState==="visible")checkRobloxVersion();},
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&(!state.robloxRelease||Date.now()-new Date(state.robloxRelease.checkedAt).getTime()>6*60*60*1000))checkRobloxVersion();});
 
 $("scanDylibs").addEventListener("click",scanDylibs);
-function openMainAppFolder(){
+async function locateAppFolder(item){
+ const candidates=item.names.filter(n=>n.startsWith("Payload/")&&n.endsWith(".app/Info.plist"));
+ let fallback=null;
+ for(const path of candidates){
+  if(!fallback)fallback=path;
+  try{
+   const meta=parsePlist(await item.zip.file(path).async("arraybuffer"))||{};
+   if(String(meta.CFBundleIdentifier||"").toLowerCase()===String(item.bundle||"").toLowerCase())return path.slice(0,path.lastIndexOf("/"));
+  }catch(e){}
+ }
+ return fallback?fallback.slice(0,fallback.lastIndexOf("/")):null;
+}
+async function openMainAppFolder(){
  const item=currentArchive();if(!item)return;
- const infoPath=item.names.filter(n=>/^Payload\/[^/]+\.app\/Info\.plist$/i.test(n)).sort((a,b)=>a.length-b.length)[0];
- if(!infoPath){toast("The main app folder could not be found in this IPA.");return;}
- const appFolder=infoPath.slice(0,infoPath.lastIndexOf("/"));
+ const appFolder=await locateAppFolder(item);
+ if(!appFolder){toast("The app folder or its Info.plist could not be found in this IPA.");return;}
  state.archivePath=appFolder;
  $("archiveSearch").value="";
- $("filePreview").hidden=true;
- $("plistEditor").hidden=true;
- $("dylibPanel").hidden=true;
- $("compatPanel").hidden=true;$("archivePanel").classList.remove("compat-mode");
+ $("filePreview").hidden=true;$("filePreview").replaceChildren();
+ $("plistEditor").hidden=true;$("dylibPanel").hidden=true;$("compatPanel").hidden=true;
+ $("archivePanel").classList.remove("compat-mode");
  renderArchive();
- const isRoblox=String(item.bundle||"").toLowerCase()==="com.roblox.robloxmobile";
- toast(isRoblox?"Opened Roblox app folder contents.":"Opened app bundle contents.");
+ $("archiveSubtitle").textContent=(isRobloxIPA(item)?"roblox.ipa · ":"")+item.file.name+" · "+item.names.length+" files · "+appFolder;
+ toast(isRobloxIPA(item)?"Opened Roblox.app folder.":"Opened app bundle folder.");
  $("archiveList").scrollIntoView({behavior:"smooth",block:"nearest"});
 }
-$("openAppFolder").addEventListener("click",openMainAppFolder);
+$("openAppFolder").addEventListener("click",()=>openMainAppFolder().catch(err=>toast("Could not open app folder: "+err.message)));
 function renderArchive(){
  const q=$("archiveSearch").value.trim().toLowerCase(),prefix=state.archivePath?state.archivePath+"/":"";
  $("breadcrumbs").innerHTML='<button data-path="">Payload root</button>'+state.archivePath.split("/").filter(Boolean).map((part,i,all)=>'<span>›</span><button data-path="'+escapeHTML(all.slice(0,i+1).join("/"))+'">'+escapeHTML(part)+'</button>').join("");
