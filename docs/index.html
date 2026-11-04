@@ -638,7 +638,7 @@ async function runCompatibility(){
    if((dep.startsWith("@rpath/")||dep.startsWith("@loader_path/")||dep.startsWith("@executable_path/"))&&!embeddedNames.has(dep.split("/").pop().toLowerCase()))appRelativeDeps.add(dep);
   }));
   appRelativeDeps.forEach(dep=>findings.push({item:dep,level:"warn",status:"Review dependency",detail:"An app-relative library reference has no matching bundled binary name. Dynamic loader search paths are not fully resolved by this static check."}));
-  if(reference){
+  if(reference&&target.bundle===reference.bundle){
    const appCmp=compareVersions(target.version,reference.version);
    if(appCmp!==null)findings.push({item:"App version",level:appCmp<0?"warn":"info",status:appCmp<0?"Behind reference":appCmp===0?"Matches reference":"Ahead of reference",detail:"Target "+target.version+" · reference "+reference.version+"."});
    const refByName=new Map(reference.libraries.map(l=>[l.name.toLowerCase(),l]));
@@ -653,8 +653,10 @@ async function runCompatibility(){
     if(!target.libraries.some(x=>x.name.toLowerCase()===lib.name.toLowerCase()))findings.push({item:lib.name,level:"warn",status:"Not bundled in target",detail:"Present in the reference package but absent from the selected IPA. Confirm whether this component is required for this app version."});
    });
    if(!findings.some(x=>x.item==="App version"))findings.push({item:"App version",level:"info",status:"Comparison unavailable",detail:"The app version fields could not be compared numerically."});
+  }else if(reference){
+   findings.push({item:"Reference IPA",level:"warn",status:"Bundle ID mismatch",detail:"The selected reference has a different bundle ID. Version comparisons were skipped to avoid comparing unrelated apps."});
   }else{
-   findings.push({item:"Version baseline",level:"info",status:"Reference needed",detail:"Import a separate trusted, newer IPA and select it above to compare app and library versions."});
+   findings.push({item:"Version baseline",level:"info",status:"Reference needed",detail:"Import a separate trusted, newer IPA of the same app and select it above to compare app and library versions."});
   }
   const report={checked_at:new Date().toISOString(),target:target,reference:reference?{app:reference.app,bundle:reference.bundle,version:reference.version,build:reference.build,libraries:reference.libraries}:null,findings:findings,limitations:["Static package metadata only. This report does not inspect live memory or calculate/update runtime offsets.","A reference IPA is required to label app or library versions as behind/ahead.","App-relative dependency checks are heuristic and do not emulate the iOS dynamic loader's full @rpath resolution."]};
   renderCompatibilityReport(report);
