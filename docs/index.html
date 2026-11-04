@@ -109,7 +109,7 @@ textarea.preview{font:11px/1.55 ui-monospace,SFMono-Regular,monospace;background
 #filePreview img{display:block;max-width:100%;max-height:60vh;object-fit:contain;margin:10px auto;border-radius:10px}.multi-window-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px}.multi-pane{min-width:0;border:1px solid #ffffff20;border-radius:15px;padding:12px;background:#100b1d}.multi-pane h4{font-size:13px;margin:0 0 8px;color:#eadcff}.multi-pane .search{margin:8px 0}.multi-pane-list{max-height:42vh;min-height:150px;overflow:auto;border:1px solid var(--line);border-radius:11px;background:#090611}.multi-pane .archiveitem{padding:9px;gap:7px}.multi-pane .archiveitem button{flex-shrink:0}.multi-pane-preview{margin-top:9px;max-height:36vh;overflow:auto}.multi-pane-preview img{display:block;max-width:100%;max-height:32vh;object-fit:contain;margin:8px auto;border-radius:9px}@media(max-width:700px){.multi-window-grid{grid-template-columns:minmax(260px,86vw) minmax(260px,86vw);overflow-x:auto;padding-bottom:8px;scroll-snap-type:x mandatory}.multi-pane{scroll-snap-align:start}.multi-pane-list{max-height:45vh}}
 .filepreview-head{font-size:12px;font-weight:800;color:#e7d6ff;margin-bottom:7px;overflow-wrap:anywhere}.preview-text{display:block;width:100%;min-height:230px;max-height:58vh;resize:vertical;white-space:pre;overflow:auto;user-select:text;-webkit-user-select:text;touch-action:pan-y;font:12px/1.55 ui-monospace,SFMono-Regular,monospace;color:#f7f1ff;background:#090611;border:1px solid var(--line);border-radius:10px;padding:12px}
 @media(max-width:620px){#compatPanel .compat-top{grid-template-columns:repeat(2,minmax(0,1fr))}}
-.offset{font:11px ui-monospace,SFMono-Regular,monospace;color:#e7d6ff}
+.bulk-offset-list{display:grid;gap:8px;margin-top:10px}.bulk-offset-row{display:grid;grid-template-columns:24px minmax(130px,1.2fr) minmax(120px,1fr) minmax(150px,1fr);gap:9px;align-items:center;padding:10px;border:1px solid var(--line);border-radius:11px;background:#ffffff06}.bulk-offset-row.selected{background:#9b6cff18}.bulk-offset-row input[type=checkbox]{width:18px;height:18px;accent-color:#a77afa}.bulk-offset-row label{display:grid;gap:4px;font-size:10px;color:var(--muted)}.bulk-offset-row input[type=text]{width:100%;min-width:0;border:1px solid var(--line);border-radius:8px;background:#090611;color:#f7f1ff;padding:8px;font-size:11px}.bulk-offset-meta{min-width:0;overflow-wrap:anywhere}.bulk-offset-meta .rowdetail{margin-top:3px}@media(max-width:680px){.bulk-offset-row{grid-template-columns:24px minmax(0,1fr);align-items:start}.bulk-offset-row .bulk-offset-edit{grid-column:2;display:grid;grid-template-columns:1fr;gap:7px}}\n.offset{font:11px ui-monospace,SFMono-Regular,monospace;color:#e7d6ff}
 .toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);padding:12px 16px;background:#34224d;border:1px solid #ffffff30;border-radius:12px;box-shadow:0 10px 32px #0008;font-size:12px;z-index:20;display:none;max-width:90vw}
 @media(max-width:620px){.shell{padding:14px 12px 95px}.hero{padding:19px}.grid{grid-template-columns:1fr}.viewhead{align-items:flex-start;flex-direction:column}.stats{gap:7px}.stat{padding:12px}.stat strong{font-size:21px}.tabs{margin:0 -2px}.top{margin-bottom:13px}}
 </style>
@@ -199,6 +199,12 @@ textarea.preview{font:11px/1.55 ui-monospace,SFMono-Regular,monospace;background
       <div class="row"><div class="grow"><h3>Dylib Inspector</h3><p class="sub">Static Mach-O file layout · file offsets only</p></div><button class="quiet smallbtn" id="closeDylibs">Close</button></div>
       <div id="dylibList" style="margin-top:10px"></div>
       <div id="dylibDetail" style="margin-top:12px"></div>
+      <div class="card" id="bulkOffsetsPanel" hidden style="margin-top:12px">
+        <div class="row"><div class="grow"><h3>Bulk Offset Notes</h3><p class="sub">Select and organize multiple static file-offset entries</p></div><span class="badge">Read-only offsets</span></div>
+        <p class="hint" style="font-size:11px;line-height:1.5;margin:9px 0">The numeric file offsets and sizes are locked. You can edit labels and notes, then copy or export selected entries. These annotations never alter the IPA binary.</p>
+        <div class="actions"><button class="quiet smallbtn" id="bulkOffsetSelectAll">Select all</button><button class="secondary smallbtn" id="bulkOffsetClear">Clear</button><button class="primary smallbtn" id="bulkOffsetCopy" disabled>Copy selected</button><button class="secondary smallbtn" id="bulkOffsetExport" disabled>Export selected JSON</button><span id="bulkOffsetCount" class="rowdetail">0 selected</span></div>
+        <div id="bulkOffsetList" class="bulk-offset-list"></div>
+      </div>
       <div class="callout" style="margin-top:12px">Offsets shown here are locations inside the stored binary file, not live process addresses. This inspector is read-only and does not patch, inject or modify executable code.</div>
     </div>
     <div class="card" id="compatPanel" hidden style="margin-top:12px">
@@ -634,12 +640,99 @@ function machoArchitectures(buffer){
  }else out.push(inspectMachSlice(buffer,0));
  return out;
 }
+let bulkOffsetEntries=[];
+const bulkOffsetSelected=new Set();
+function updateBulkOffsetCount(){
+ const count=bulkOffsetSelected.size;
+ $("bulkOffsetCount").textContent=count+" selected of "+bulkOffsetEntries.length;
+ $("bulkOffsetCopy").disabled=count===0;
+ $("bulkOffsetExport").disabled=count===0;
+}
+function renderBulkOffsetEntries(){
+ const panel=$("bulkOffsetsPanel"),list=$("bulkOffsetList");
+ if(!panel||!list)return;
+ panel.hidden=bulkOffsetEntries.length===0;
+ if(!bulkOffsetEntries.length){list.innerHTML='<div class="empty">No segment or section file offsets were found.</div>';updateBulkOffsetCount();return;}
+ list.innerHTML=bulkOffsetEntries.map((entry,index)=>
+  '<div class="bulk-offset-row'+(bulkOffsetSelected.has(index)?" selected":"")+'" data-bulk-row="'+index+'">'+
+   '<input type="checkbox" aria-label="Select '+escapeHTML(entry.name)+'" data-bulk-select="'+index+'" '+(bulkOffsetSelected.has(index)?"checked":"")+'>'+
+   '<div class="bulk-offset-meta"><div class="rowtitle">'+escapeHTML(entry.name)+'</div><div class="rowdetail">'+escapeHTML(entry.architecture)+" · "+escapeHTML(entry.kind)+'</div><div class="rowdetail">'+escapeHTML(entry.sourcePath)+'</div><div class="offset">'+escapeHTML(entry.fileOffset)+' · size '+escapeHTML(entry.fileSize)+'</div></div>'+
+   '<label class="bulk-offset-edit">Label<input type="text" maxlength="100" data-bulk-label="'+index+'" value="'+escapeHTML(entry.label)+'" placeholder="Add a label"></label>'+
+   '<label class="bulk-offset-edit">Note<input type="text" maxlength="240" data-bulk-note="'+index+'" value="'+escapeHTML(entry.note)+'" placeholder="Add a note"></label>'+
+  '</div>'
+ ).join("");
+ list.querySelectorAll("[data-bulk-select]").forEach(box=>box.addEventListener("change",()=>{
+  const index=Number(box.dataset.bulkSelect);
+  if(box.checked)bulkOffsetSelected.add(index);else bulkOffsetSelected.delete(index);
+  box.closest(".bulk-offset-row").classList.toggle("selected",box.checked);
+  updateBulkOffsetCount();
+ }));
+ list.querySelectorAll("[data-bulk-label]").forEach(input=>input.addEventListener("input",()=>{
+  bulkOffsetEntries[Number(input.dataset.bulkLabel)].label=input.value;
+ }));
+ list.querySelectorAll("[data-bulk-note]").forEach(input=>input.addEventListener("input",()=>{
+  bulkOffsetEntries[Number(input.dataset.bulkNote)].note=input.value;
+ }));
+ updateBulkOffsetCount();
+}
+function getSelectedBulkOffsets(){
+ return Array.from(bulkOffsetSelected).sort((a,b)=>a-b).map(index=>{
+  const entry=bulkOffsetEntries[index];
+  return {sourcePath:entry.sourcePath,architecture:entry.architecture,kind:entry.kind,name:entry.name,label:entry.label,note:entry.note,fileOffset:entry.fileOffset,fileSize:entry.fileSize};
+ });
+}
+async function copyBulkOffsets(){
+ const selected=getSelectedBulkOffsets();
+ if(!selected.length){toast("Select at least one entry first.");return;}
+ const output=JSON.stringify(selected,null,2);
+ try{
+  if(navigator.clipboard&&navigator.clipboard.writeText){await navigator.clipboard.writeText(output);toast(selected.length+" file-offset entries copied.");return;}
+ }catch(error){}
+ const field=document.createElement("textarea");
+ field.value=output;field.setAttribute("readonly","");field.style.position="fixed";field.style.opacity="0";field.style.left="-9999px";
+ document.body.appendChild(field);field.focus();field.select();field.setSelectionRange(0,field.value.length);
+ let copied=false;try{copied=document.execCommand("copy");}catch(error){}
+ field.remove();
+ toast(copied?selected.length+" file-offset entries copied.":"Clipboard access is unavailable in this browser.");
+}
+function exportBulkOffsets(){
+ const selected=getSelectedBulkOffsets();
+ if(!selected.length){toast("Select at least one entry first.");return;}
+ const blob=new Blob([JSON.stringify({format:"Pluto Sign static file-offset notes",exportedAt:new Date().toISOString(),entries:selected},null,2)],{type:"application/json"});
+ const name=(bulkOffsetEntries[0]?.sourcePath.split("/").pop()||"ipa").replace(/[^a-z0-9._-]+/gi,"-");
+ downloadBlob(blob,name+"-offset-notes.json");
+ toast(selected.length+" entries exported as JSON.");
+}
+$("bulkOffsetSelectAll").addEventListener("click",()=>{
+ bulkOffsetEntries.forEach((entry,index)=>bulkOffsetSelected.add(index));
+ renderBulkOffsetEntries();
+});
+$("bulkOffsetClear").addEventListener("click",()=>{
+ bulkOffsetSelected.clear();
+ renderBulkOffsetEntries();
+});
+$("bulkOffsetCopy").addEventListener("click",copyBulkOffsets);
+$("bulkOffsetExport").addEventListener("click",exportBulkOffsets);
+function buildBulkOffsetEntries(path,slices){
+ const entries=[];
+ slices.forEach(slice=>{
+  slice.segments.forEach(segment=>{
+   entries.push({sourcePath:path,architecture:slice.arch,kind:"Segment",name:segment.name,label:segment.name,note:"",fileOffset:formatHex(BigInt(slice.fileBase)+BigInt(segment.fileoff)),fileSize:formatHex(segment.filesize)});
+   segment.sections.forEach(section=>{
+    entries.push({sourcePath:path,architecture:slice.arch,kind:"Section",name:section.name,label:section.name,note:"",fileOffset:formatHex(BigInt(slice.fileBase)+BigInt(section.offset)),fileSize:formatHex(section.size)});
+   });
+  });
+ });
+ return entries;
+}
 async function inspectDylib(path){
  const item=currentArchive();if(!item)return;const file=item.zip.file(path);if(!file)return;
  $("dylibDetail").innerHTML='<span class="badge">Reading '+escapeHTML(path)+'</span>';
  try{
   const buffer=await file.async("arraybuffer");if(buffer.byteLength>134217728)throw new Error("This binary is over the 128 MB browser inspection limit.");
   const slices=machoArchitectures(buffer);
+  bulkOffsetEntries=buildBulkOffsetEntries(path,slices);
+  bulkOffsetSelected.clear();
   let html='<div class="sectionlabel">FILE: '+escapeHTML(path)+'</div><div class="badge good">'+sizeText(buffer.byteLength)+' · Mach-O</div>';
   slices.forEach(m=>{
    html+='<div class="card" style="margin-top:10px"><div class="row"><h3 style="margin:0">'+escapeHTML(m.arch)+'</h3><span class="badge">'+m.bits+'-bit</span></div>';
@@ -652,12 +745,16 @@ async function inspectDylib(path){
    html+='</tbody></table></div>';
   });
   $("dylibDetail").innerHTML=html;
- }catch(err){$("dylibDetail").innerHTML='<span class="badge warn">'+escapeHTML(err.message)+'</span>';}
+  renderBulkOffsetEntries();
+ }catch(err){
+  bulkOffsetEntries=[];bulkOffsetSelected.clear();renderBulkOffsetEntries();
+  $("dylibDetail").innerHTML='<span class="badge warn">'+escapeHTML(err.message)+'</span>';
+ }
 }
 async function scanDylibs(){
  const item=currentArchive();if(!item)return;
  const all=libraryPaths(item);
- $("dylibPanel").hidden=false;$("plistEditor").hidden=true;$("dylibDetail").innerHTML="";
+ $("dylibPanel").hidden=false;$("plistEditor").hidden=true;$("dylibDetail").innerHTML="";$("bulkOffsetsPanel").hidden=true;bulkOffsetEntries=[];bulkOffsetSelected.clear();
  $("dylibList").innerHTML=all.length?all.map((p,i)=>'<div class="archiveitem"><div class="grow"><div class="rowtitle">'+escapeHTML(p.split("/").pop())+'</div><div class="rowdetail">'+escapeHTML(p)+'</div></div><button data-inspectdylib="'+i+'">Inspect offsets</button></div>').join(""):'<div class="empty"><b>No dylibs found</b>This IPA does not contain a .dylib file or a recognized framework binary.</div>';
  $("dylibList").querySelectorAll("[data-inspectdylib]").forEach(b=>b.addEventListener("click",()=>inspectDylib(all[Number(b.dataset.inspectdylib)])));
  $("dylibPanel").scrollIntoView({behavior:"smooth",block:"nearest"});
