@@ -164,6 +164,7 @@ textarea.preview{font:11px/1.55 ui-monospace,SFMono-Regular,monospace;background
     <div class="row"><div class="grow"><h3 id="archiveTitle">IPA contents</h3><p class="sub" id="archiveSubtitle"></p></div><button class="quiet smallbtn" id="closeArchive">Close</button></div>
     <div class="actions">
       <button class="quiet smallbtn" id="editInfo">Edit main Info.plist</button>
+      <button class="secondary smallbtn" id="openAppFolder">Open app folder contents</button>
       <button class="secondary smallbtn" id="scanDylibs">Find dylibs</button>
       <button class="primary smallbtn" id="checkCompatibility">Check compatibility</button>
       <button class="primary smallbtn" id="exportModified" hidden>Export modified IPA</button>
@@ -796,6 +797,23 @@ setInterval(()=>{if(document.visibilityState==="visible")checkRobloxVersion();},
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&(!state.robloxRelease||Date.now()-new Date(state.robloxRelease.checkedAt).getTime()>6*60*60*1000))checkRobloxVersion();});
 
 $("scanDylibs").addEventListener("click",scanDylibs);
+function openMainAppFolder(){
+ const item=currentArchive();if(!item)return;
+ const infoPath=item.names.filter(n=>/^Payload\/[^/]+\.app\/Info\.plist$/i.test(n)).sort((a,b)=>a.length-b.length)[0];
+ if(!infoPath){toast("The main app folder could not be found in this IPA.");return;}
+ const appFolder=infoPath.slice(0,infoPath.lastIndexOf("/"));
+ state.archivePath=appFolder;
+ $("archiveSearch").value="";
+ $("filePreview").hidden=true;
+ $("plistEditor").hidden=true;
+ $("dylibPanel").hidden=true;
+ $("compatPanel").hidden=true;
+ renderArchive();
+ const isRoblox=String(item.bundle||"").toLowerCase()==="com.roblox.robloxmobile";
+ toast(isRoblox?"Opened Roblox app folder contents.":"Opened app bundle contents.");
+ $("archiveList").scrollIntoView({behavior:"smooth",block:"nearest"});
+}
+$("openAppFolder").addEventListener("click",openMainAppFolder);
 function renderArchive(){
  const q=$("archiveSearch").value.trim().toLowerCase(),prefix=state.archivePath?state.archivePath+"/":"";
  $("breadcrumbs").innerHTML='<button data-path="">Payload root</button>'+state.archivePath.split("/").filter(Boolean).map((part,i,all)=>'<span>›</span><button data-path="'+escapeHTML(all.slice(0,i+1).join("/"))+'">'+escapeHTML(part)+'</button>').join("");
