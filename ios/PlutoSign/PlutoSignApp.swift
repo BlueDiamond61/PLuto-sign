@@ -512,6 +512,7 @@ struct PlutoTabs: View {
             Assets().tabItem { Label("Assets", systemImage: "key.fill") }
             SignPrep().tabItem { Label("Signing", systemImage: "signature") }
         }.tint(Style.violet)
+        .onAppear { store.reload() }
         .alert("Pluto Sign", isPresented: Binding(get: { store.error != nil }, set: { if !$0 { store.error = nil } })) {
             Button("OK") { store.error = nil }
         } message: { Text(store.error ?? "") }
@@ -520,6 +521,7 @@ struct PlutoTabs: View {
 struct Dashboard: View {
     @EnvironmentObject var store: PlutoStore
     @State private var importing = false
+    @State private var importingFiles = false
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -541,6 +543,7 @@ struct Dashboard: View {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("QUICK ACTIONS").font(.caption.bold()).foregroundStyle(Style.pink)
                             Button { importing = true } label: { Label("Import IPA from Files", systemImage: "plus").frame(maxWidth: .infinity) }.buttonStyle(MainButton())
+                            Button { importingFiles = true } label: { Label("Import Other Files", systemImage: "folder.badge.plus").frame(maxWidth: .infinity) }.buttonStyle(.bordered).tint(Style.violet)
                         }
                     }
                     Panel {
@@ -566,6 +569,10 @@ struct Dashboard: View {
             .fileImporter(isPresented: $importing, allowedContentTypes: [UTType(filenameExtension: "ipa") ?? .data], allowsMultipleSelection: true) { result in
                 switch result { case .success(let urls): store.importIPAs(urls); case .failure(let e): store.error = e.localizedDescription }
             }
+            .fileImporter(isPresented: $importingFiles, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
+                switch result { case .success(let urls): store.importFiles(urls); case .failure(let e): store.error = e.localizedDescription }
+            }
+            .refreshable { store.reload() }
         }
     }
     func stat(_ title: String, _ value: String, _ icon: String) -> some View {
@@ -575,6 +582,7 @@ struct Dashboard: View {
 struct Library: View {
     @EnvironmentObject var store: PlutoStore
     @State private var importing = false
+    @State private var importingFiles = false
     @State private var query = ""
     var items: [IPARecord] { store.ipas.filter { query.isEmpty || "\($0.app) \($0.bundle) \($0.version) \($0.name)".localizedCaseInsensitiveContains(query) } }
     var body: some View {
@@ -583,6 +591,7 @@ struct Library: View {
                 VStack(alignment: .leading, spacing: 13) {
                     Text("IPA Library").font(.system(size: 26, weight: .bold, design: .rounded))
                     Button { importing = true } label: { Label("Import IPA", systemImage: "plus").frame(maxWidth: .infinity) }.buttonStyle(MainButton())
+                    Button { importingFiles = true } label: { Label("Import Files", systemImage: "folder.badge.plus").frame(maxWidth: .infinity) }.buttonStyle(.bordered).tint(Style.violet)
                     TextField("Search app, bundle ID, version…", text: $query).padding(12).background(Style.card, in: RoundedRectangle(cornerRadius: 12))
                     ForEach(items) { ipa in
                         NavigationLink(destination: IPADetail(ipa: ipa)) {
@@ -606,6 +615,50 @@ struct Library: View {
             .fileImporter(isPresented: $importing, allowedContentTypes: [UTType(filenameExtension: "ipa") ?? .data], allowsMultipleSelection: true) { result in
                 switch result { case .success(let urls): store.importIPAs(urls); case .failure(let e): store.error = e.localizedDescription }
             }
+            .fileImporter(isPresented: $importingFiles, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
+                switch result { case .success(let urls): store.importFiles(urls); case .failure(let e): store.error = e.localizedDescription }
+            }
+            .refreshable { store.reload() }
+        }
+    }
+}
+struct ImportedFiles: View {
+    @EnvironmentObject var store: PlutoStore
+    @State private var importing = false
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 13) {
+                    Text("Files").font(.system(size: 26, weight: .bold, design: .rounded))
+                    Button { importing = true } label: {
+                        Label("Import from Files", systemImage: "folder.badge.plus").frame(maxWidth: .infinity)
+                    }.buttonStyle(MainButton())
+                    Text("General documents are stored locally. IPA files go to the IPA Library and provisioning profiles go to Signing Assets. Import P12/PFX files from the Assets tab so Pluto Sign can validate the password and store the identity in Keychain.")
+                        .font(.footnote).foregroundStyle(Style.muted)
+                    ForEach(store.documents) { file in
+                        Panel {
+                            HStack {
+                                Image(systemName: "doc.fill").foregroundStyle(Style.pink)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(file.name).font(.subheadline.bold()).foregroundStyle(.white)
+                                    Text("\(file.fileType) • \(ByteCountFormatter.string(fromByteCount: file.size, countStyle: .file))")
+                                        .font(.caption).foregroundStyle(Style.muted)
+                                }
+                                Spacer()
+                                ShareLink(item: file.url) { Image(systemName: "square.and.arrow.up") }
+                                Button(role: .destructive) { store.removeDocument(file) } label: { Image(systemName: "trash") }
+                            }
+                        }
+                    }
+                    if store.documents.isEmpty {
+                        ContentUnavailableView("No imported files", systemImage: "folder", description: Text("Use Import from Files to add documents."))
+                    }
+                }.padding(20)
+            }.background(Style.bg.ignoresSafeArea()).navigationBarHidden(true)
+                .fileImporter(isPresented: $importing, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
+                    switch result { case .success(let urls): store.importFiles(urls); case .failure(let e): store.error = e.localizedDescription }
+                }
+                .refreshable { store.reload() }
         }
     }
 }
@@ -628,6 +681,8 @@ struct IPADetail: View {
                 button("Browse IPA contents", "folder.fill") { browser = true }
                 button("Search files, dylibs, plists", "magnifyingglass") { search = true }
                 button("Version synchronization", "arrow.triangle.2.circlepath") { sync = true }
+                ShareLink(item: ipa.url) { Label("Share original IPA", systemImage: "square.and.arrow.up").frame(maxWidth: .infinity) }
+                    .buttonStyle(.bordered).tint(Style.violet)
                 Text("Version synchronization changes metadata only, not compiled code. Modified IPAs require authorized re-signing.").font(.footnote).foregroundStyle(Style.muted)
             }.padding(20)
         }.background(Style.bg.ignoresSafeArea()).navigationTitle("Package").navigationBarTitleDisplayMode(.inline)
@@ -794,9 +849,10 @@ struct Assets: View {
                             Panel {
                                 HStack {
                                     Image(systemName: kind == "P12 / PFX" ? "key.fill" : "doc.badge.gearshape").foregroundStyle(Style.pink)
-                                    VStack(alignment: .leading) {
+                                    VStack(alignment: .leading, spacing: 3) {
                                         Text(asset.name).font(.subheadline.bold())
                                         Text(kind == "P12 / PFX" ? "Stored in Keychain" : "Stored in app-private folder").font(.caption2).foregroundStyle(Style.muted)
+                                        if let detail = asset.detail { Text(detail).font(.caption2).foregroundStyle(Style.muted).fixedSize(horizontal: false, vertical: true) }
                                     }
                                     Spacer()
                                     Button(role: .destructive) { store.remove(asset) } label: { Image(systemName: "trash") }
@@ -847,6 +903,7 @@ struct SignPrep: View {
     @State private var certID = ""
     @State private var profileID = ""
     @State private var shareURL: URL?
+    @State private var readiness = ""
     @State private var error: String?
     var body: some View {
         NavigationStack {
@@ -864,6 +921,22 @@ struct SignPrep: View {
                                     shareURL = try store.signingRequest(ipa, store.assets.first { $0.id.uuidString == certID }, store.assets.first { $0.id.uuidString == profileID })
                                 } catch { self.error = error.localizedDescription }
                             } label: { Label("Export signing request", systemImage: "square.and.arrow.up").frame(maxWidth: .infinity) }.buttonStyle(MainButton()).disabled(ipaID.isEmpty)
+                            Button("Check signing readiness") {
+                                guard let ipa = store.ipas.first(where: { $0.id.uuidString == ipaID }) else {
+                                    readiness = "Select an IPA package first."
+                                    return
+                                }
+                                readiness = store.signingReadiness(
+                                    ipa,
+                                    certificate: store.assets.first { $0.id.uuidString == certID },
+                                    profile: store.assets.first { $0.id.uuidString == profileID }
+                                )
+                            }.buttonStyle(.bordered).tint(Style.violet).disabled(ipaID.isEmpty)
+                            if !readiness.isEmpty {
+                                Text(readiness).font(.footnote).foregroundStyle(Style.muted).fixedSize(horizontal: false, vertical: true)
+                                    .padding(10).frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Style.bg, in: RoundedRectangle(cornerRadius: 11))
+                            }
                             if let shareURL { ShareLink(item: shareURL) { Label("Share request JSON", systemImage: "shareplay") } }
                         }
                     }
