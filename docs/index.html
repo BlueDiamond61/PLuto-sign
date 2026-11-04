@@ -484,8 +484,8 @@ async function inspectDylib(path){
    html+='<p class="rowdetail">UUID: <span class="offset">'+escapeHTML(m.uuid)+'</span> · Load commands: '+m.ncmds+' · File type: '+m.filetype+'</p>';
    html+='<table class="dataTable"><thead><tr><th>Segment / section</th><th>File offset</th><th>File size</th></tr></thead><tbody>';
    m.segments.forEach(seg=>{
-    html+='<tr><td>'+escapeHTML(seg.name)+'</td><td class="offset">'+formatHex(seg.fileoff)+'</td><td class="offset">'+formatHex(seg.filesize)+'</td></tr>';
-    seg.sections.forEach(sec=>{html+='<tr><td>↳ '+escapeHTML(sec.name)+'</td><td class="offset">'+formatHex(sec.offset)+'</td><td class="offset">'+formatHex(sec.size)+'</td></tr>';});
+    html+='<tr><td>'+escapeHTML(seg.name)+'</td><td class="offset">'+formatHex(BigInt(m.fileBase)+BigInt(seg.fileoff))+'</td><td class="offset">'+formatHex(seg.filesize)+'</td></tr>';
+    seg.sections.forEach(sec=>{html+='<tr><td>↳ '+escapeHTML(sec.name)+'</td><td class="offset">'+formatHex(BigInt(m.fileBase)+BigInt(sec.offset))+'</td><td class="offset">'+formatHex(sec.size)+'</td></tr>';});
    });
    html+='</tbody></table></div>';
   });
