@@ -264,6 +264,7 @@ textarea.preview{font:11px/1.55 ui-monospace,SFMono-Regular,monospace;background
 <div class="toast" id="toast" role="status"></div>
 
 <input class="hiddenfile" id="ipaPicker" type="file" accept=".ipa,application/octet-stream" multiple>
+<input class="hiddenfile" id="robloxPicker" type="file" accept=".ipa,application/octet-stream">
 <input class="hiddenfile" id="generalPicker" type="file" multiple>
 <input class="hiddenfile" id="certPicker" type="file" accept=".p12,.pfx,application/x-pkcs12">
 <input class="hiddenfile" id="profilePicker" type="file" accept=".mobileprovision,application/octet-stream">
@@ -455,7 +456,7 @@ function plistToXML(value){
  if(!value||Array.isArray(value)||typeof value!=="object"||value.$plistData)throw new Error("The Info.plist root must be a dictionary.");
  return '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n'+plistXMLNode(value)+"\n</plist>\n";
 }
-async function importIPAs(files){
+async function importIPAs(files,expectedBundle=null){
  if(!window.JSZip){toast("Archive reader could not load. Check your internet connection and reload.");return;}
  for(const file of files){
   if(!file.name.toLowerCase().endsWith(".ipa")){toast(file.name+" is not an .ipa file.");continue;}
@@ -465,9 +466,12 @@ async function importIPAs(files){
    if(!names.some(n=>n.startsWith("Payload/")&&n.endsWith(".app/Info.plist")))throw new Error("No Payload/*.app/Info.plist found.");
    const infoPath=names.filter(n=>/^Payload\/[^/]+\.app\/Info\.plist$/.test(n)).sort((a,b)=>a.length-b.length)[0];
    let meta={};try{const data=await zip.file(infoPath).async("arraybuffer");meta=parsePlist(data)||{};}catch(e){}
-   const record={id:"ipa-"+Date.now()+"-"+Math.random().toString(36).slice(2),file:file,zip:zip,names:names,modified:false,
-    app:meta.CFBundleDisplayName||meta.CFBundleName||file.name.replace(/\.ipa$/i,""),
-    bundle:meta.CFBundleIdentifier||"Metadata unavailable",version:meta.CFBundleShortVersionString||"—",build:meta.CFBundleVersion||"—",size:file.size};
+   const bundleId=String(meta.CFBundleIdentifier||"");
+   if(expectedBundle&&bundleId.toLowerCase()!==expectedBundle.toLowerCase())throw new Error("This package is not the expected Roblox app. Bundle ID found: "+(bundleId||"unavailable")+".");
+   const recordFile=expectedBundle?new File([file],"roblox.ipa",{type:file.type||"application/octet-stream",lastModified:file.lastModified||Date.now()}):file;
+   const record={id:"ipa-"+Date.now()+"-"+Math.random().toString(36).slice(2),file:recordFile,zip:zip,names:names,modified:false,
+    app:meta.CFBundleDisplayName||meta.CFBundleName||recordFile.name.replace(/\.ipa$/i,""),
+    bundle:bundleId||"Metadata unavailable",version:meta.CFBundleShortVersionString||"—",build:meta.CFBundleVersion||"—",size:recordFile.size};
    state.ipas.unshift(record);
    try{await saveIPARecord(record,false);toast("Imported and verified saved copy: "+record.app);}catch(storeError){record.saved=false;toast("Import succeeded but save failed: "+storeError.message);}
   }catch(err){toast("Could not read "+file.name+": "+err.message);}
@@ -487,13 +491,13 @@ function renderIPAs(){
  }).join("");
  const hasRoblox=state.ipas.some(isRobloxIPA);
  const showRobloxSlot=!hasRoblox&&(!q||"roblox roblox.ipa roblox.com".includes(q));
- const slot=showRobloxSlot?'<div class="card"><div class="row"><div class="iconbox">R</div><div class="grow"><div class="rowtitle">Roblox</div><div class="rowdetail">roblox.ipa · Official app package slot</div><div class="rowdetail">No actual Roblox IPA has been imported.</div></div><span class="badge warn">Import required</span></div><div class="actions"><button class="primary smallbtn" id="importRobloxIPA">Import Roblox IPA</button><a class="secondary smallbtn" href="https://www.roblox.com/" target="_blank" rel="noopener noreferrer">Open Roblox.com</a><a class="secondary smallbtn" href="https://apps.apple.com/us/app/roblox/id431946152" target="_blank" rel="noopener noreferrer">App Store</a></div><p class="hint" style="font-size:11px;margin-top:9px">This is a shortcut, not a downloaded IPA. Import a real Roblox .ipa file to browse its packaged files.</p></div>':"";
+ const slot=showRobloxSlot?'<div class="card"><div class="row"><div class="iconbox">R</div><div class="grow"><div class="rowtitle">Roblox</div><div class="rowdetail">roblox.ipa · Prepared copy: v2.745.1138 · 105.8 MB</div><div class="rowdetail">Import the prepared file from your device to add it to this library.</div></div><span class="badge warn">Import required</span></div><div class="actions"><button class="primary smallbtn" id="importRobloxIPA">Import prepared Roblox IPA</button><a class="secondary smallbtn" href="https://www.roblox.com/" target="_blank" rel="noopener noreferrer">Open Roblox.com</a><a class="secondary smallbtn" href="https://apps.apple.com/us/app/roblox/id431946152" target="_blank" rel="noopener noreferrer">App Store</a></div><p class="hint" style="font-size:11px;margin-top:9px">First download <b>roblox.ipa</b> from this ChatGPT conversation to your device. Then choose it here. Pluto Sign checks for the Roblox bundle ID before importing and saves it in this browser.</p></div>':"";
  $("ipaList").innerHTML=cards+slot+(!cards&&!slot?'<div class="empty"><b>No matching IPA packages</b>Choose an IPA file from your device to add it to this session.</div>':"");
  $("ipaList").querySelectorAll("[data-open]").forEach(b=>b.addEventListener("click",()=>openArchive(b.dataset.open)));
  $("ipaList").querySelectorAll("[data-share]").forEach(b=>b.addEventListener("click",()=>downloadIPA(b.dataset.share)));
  $("ipaList").querySelectorAll("[data-removeipa]").forEach(b=>b.addEventListener("click",()=>{const removedId=b.dataset.removeipa;state.ipas=state.ipas.filter(x=>x.id!==removedId);removeSavedIPA(removedId).catch(err=>toast("Local deletion failed: "+err.message));if(state.archiveId===removedId)closeArchive();updateCounts();renderIPAs();refreshSigning();renderRobloxMonitor();}));
  const importButton=$("importRobloxIPA");
- if(importButton)importButton.addEventListener("click",()=>$("ipaPicker").click());
+ if(importButton)importButton.addEventListener("click",()=>$("robloxPicker").click());
 }
 function downloadBlob(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);}
 function downloadIPA(id){const x=byId(id);if(!x)return;if(x.modified){exportModifiedIPA(x);return;}downloadBlob(x.file,x.file.name);}
@@ -1030,6 +1034,7 @@ $("importGeneral").addEventListener("click",()=>$("generalPicker").click());
 $("importCert").addEventListener("click",()=>$("certPicker").click());
 $("importProfile").addEventListener("click",()=>$("profilePicker").click());
 $("ipaPicker").addEventListener("change",e=>{if(e.target.files.length)importIPAs(Array.from(e.target.files));e.target.value="";});
+$("robloxPicker").addEventListener("change",e=>{if(e.target.files[0])importIPAs([e.target.files[0]],"com.roblox.robloxmobile");e.target.value="";});
 $("generalPicker").addEventListener("change",e=>{Array.from(e.target.files).forEach(routeFile);e.target.value="";renderFiles();});
 $("certPicker").addEventListener("change",e=>{if(e.target.files[0]){state.cert=e.target.files[0];renderAssets();updateCounts();refreshSigning();toast("P12/PFX selected for this session.");}e.target.value="";});
 $("profilePicker").addEventListener("change",e=>{if(e.target.files[0]){state.profile=e.target.files[0];renderAssets();updateCounts();refreshSigning();toast("Provisioning profile selected for this session.");}e.target.value="";});
