@@ -144,7 +144,7 @@ textarea.preview{font:11px/1.55 ui-monospace,SFMono-Regular,monospace;background
   <div class="card" id="robloxMonitor">
     <div class="row"><div class="iconbox">R</div><div class="grow"><div class="rowtitle">Roblox · Official App Store</div><div class="rowdetail" id="robloxStatus">Checking Apple's US App Store listing…</div></div><span class="badge" id="robloxVersionBadge">—</span></div>
     <p class="sub" id="robloxDetails" style="margin-top:10px">The latest published version will be compared with a Roblox IPA in your saved library.</p>
-    <div class="actions"><button class="primary smallbtn" id="checkRoblox">Check for Roblox updates</button><a class="secondary smallbtn" href="https://apps.apple.com/us/app/roblox/id431946152" target="_blank" rel="noopener noreferrer">Open official App Store</a></div>
+    <div class="actions"><button class="primary smallbtn" id="checkRoblox">Check for Roblox updates</button><a class="secondary smallbtn" href="https://apps.apple.com/us/app/roblox/id431946152" target="_blank" rel="noopener noreferrer">Open official App Store</a><a class="secondary smallbtn" href="https://www.roblox.com/" target="_blank" rel="noopener noreferrer">Open Roblox.com</a></div>
     <div class="row" style="margin-top:10px"><span class="rowdetail" id="robloxCheckedAt">Automatic check when Pluto Sign opens; refreshes every 6 hours while open.</span></div>
   </div>
   <div class="sectionlabel">QUICK IMPORT</div>
@@ -418,8 +418,7 @@ async function importIPAs(files){
     app:meta.CFBundleDisplayName||meta.CFBundleName||file.name.replace(/\.ipa$/i,""),
     bundle:meta.CFBundleIdentifier||"Metadata unavailable",version:meta.CFBundleShortVersionString||"—",build:meta.CFBundleVersion||"—",size:file.size};
    state.ipas.unshift(record);
-   try{await saveIPARecord(record,false);}catch(storeError){record.saved=false;toast("Local save failed: "+storeError.message);}
-   toast("Imported "+record.app);
+   try{await saveIPARecord(record,false);toast("Imported and saved on this device: "+record.app);}catch(storeError){record.saved=false;toast("Imported, but local save failed: "+storeError.message);}
   }catch(err){toast("Could not read "+file.name+": "+err.message);}
  }
  updateCounts();renderIPAs();refreshSigning();showTab("ipas");
