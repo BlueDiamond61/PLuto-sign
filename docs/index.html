@@ -2,124 +2,370 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="theme-color" content="#0d0819">
-<meta name="description" content="Pluto Sign iOS workspace to view IPA packages, import your own certificates and prepare an authorized signing handoff.">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0b0716">
+<meta name="description" content="Pluto Sign web workspace: import and inspect IPA packages, manage files and prepare an authorized signing handoff.">
 <meta name="apple-mobile-web-app-title" content="Pluto Sign">
 <link rel="icon" type="image/png" href="./pluto-icon.png">
 <link rel="apple-touch-icon" href="./pluto-icon.png">
-<title>Pluto Sign — iOS IPA Workspace</title>
+<title>Pluto Sign — Web Workspace</title>
 <style>
-:root{color-scheme:dark;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#0b0715;color:#f7f2ff}
+:root{color-scheme:dark;--bg:#0b0716;--panel:#171027;--panel2:#201536;--line:#ffffff18;--muted:#b5a9c9;--text:#f7f1ff;--violet:#9b6cff;--pink:#df8cff;--good:#7ce0b0;--warn:#ffca80}
 *{box-sizing:border-box}
-body{margin:0;min-height:100vh;padding:28px 16px 44px;background:radial-gradient(ellipse at 50% -10%,#38205f 0%,#151025 38%,#0b0715 76%)}
-main{width:min(100%,780px);margin:0 auto}
-.top{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:26px}
-.brand{font-size:13px;letter-spacing:.25em;font-weight:900;color:#d1b1ff}
-.version{font-size:11px;color:#bcaed0;border:1px solid #ffffff1c;padding:7px 10px;border-radius:999px}
-.hero{padding:30px;border-radius:28px;border:1px solid #ffffff20;background:linear-gradient(135deg,#38205e,#21133e 58%,#151027);box-shadow:0 24px 80px #0008}
-.eyebrow{font-size:11px;letter-spacing:.18em;color:#e3c8ff;font-weight:800}
-h1{font-size:clamp(36px,8vw,54px);line-height:1;margin:16px 0 13px;letter-spacing:-.045em}
-p{line-height:1.65;color:#c9bfd9;margin:0}
-.hero p{max-width:600px}
-.actions{display:flex;flex-wrap:wrap;gap:10px;margin-top:24px}
-a{color:#d4b8ff}
-a.primary,a.secondary{display:inline-flex;justify-content:center;align-items:center;gap:9px;text-align:center;text-decoration:none;font-weight:800;padding:14px 17px;border-radius:14px}
-a.primary{color:white;background:linear-gradient(100deg,#8855e8,#c16be8);box-shadow:0 10px 26px #8855e833}
-a.secondary{color:#e9dcff;border:1px solid #ffffff27;background:#ffffff09}
-.section-title{margin:30px 0 13px;font-size:12px;letter-spacing:.16em;color:#d7b9ff;font-weight:850}
+body{margin:0;min-height:100vh;background:radial-gradient(ellipse at 50% -12%,#38205f 0%,#171027 38%,var(--bg) 78%);color:var(--text);font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+button,input{font:inherit}
+button{cursor:pointer}
+a{color:#d8bdff}
+.shell{max-width:1080px;margin:auto;padding:20px 16px 100px}
+.top{display:flex;align-items:center;gap:13px;margin:4px 0 20px}
+.logo{width:48px;height:48px;border-radius:15px;object-fit:cover;box-shadow:0 5px 22px #8e4cff44}
+.brand{font-size:12px;font-weight:900;letter-spacing:.22em;color:#d7baff}
+.tagline{font-size:12px;color:var(--muted);margin-top:4px}
+.topspacer{flex:1}
+.pill{border:1px solid var(--line);border-radius:999px;padding:7px 10px;font-size:10px;letter-spacing:.08em;color:#d6c3ef}
+.hero{border:1px solid #ffffff20;border-radius:25px;padding:24px;background:linear-gradient(130deg,#38205e,#24133f 62%,#171027);box-shadow:0 22px 65px #0006}
+.eyebrow{font-size:10px;letter-spacing:.17em;font-weight:900;color:#e2c5ff}
+h1{font-size:clamp(30px,6vw,48px);line-height:1.02;letter-spacing:-.045em;margin:13px 0 10px}
+.hero p{max-width:680px;color:#d0c3e1;line-height:1.6;margin:0}
+.hero-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:19px}
+.primary,.secondary,.quiet,.danger{border:0;border-radius:13px;padding:12px 15px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none}
+.primary{background:linear-gradient(100deg,#8755e7,#c06ce7);color:white;box-shadow:0 8px 22px #8e52dc3d}
+.secondary{background:#ffffff0c;border:1px solid #ffffff25;color:#f3eaff}
+.quiet{background:#8c63d526;border:1px solid #a77afa55;color:#eadcff}
+.danger{background:#d34f7040;border:1px solid #f0778b55;color:#ffdce4}
+button:disabled{opacity:.42;cursor:not-allowed}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:14px 0 20px}
+.stat,.card{background:linear-gradient(145deg,var(--panel2),var(--panel));border:1px solid var(--line);border-radius:17px;padding:15px}
+.stat small,.muted,.hint{color:var(--muted)}
+.stat small{font-size:9px;letter-spacing:.1em;font-weight:900}
+.stat strong{display:block;font-size:25px;margin-top:6px}
+.tabs{display:flex;gap:8px;overflow-x:auto;padding:5px 1px 13px;scrollbar-width:thin}
+.tab{white-space:nowrap;border:1px solid var(--line);background:#ffffff08;color:#d5c8e6;padding:11px 14px;border-radius:12px;font-weight:800;font-size:12px}
+.tab.active{background:linear-gradient(100deg,#794bd3,#a958cc);border-color:#cb9cff;color:white;box-shadow:0 6px 18px #7d4cc533}
+.view{display:none;animation:appear .16s ease}
+.view.active{display:block}
+@keyframes appear{from{opacity:.6;transform:translateY(3px)}to{opacity:1;transform:none}}
+.viewhead{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin:12px 0 15px}
+h2{font-size:23px;margin:0 0 5px}
+.sub{font-size:13px;color:var(--muted);line-height:1.55;margin:0}
+.sectionlabel{font-size:10px;letter-spacing:.13em;color:var(--pink);font-weight:900;margin:8px 0 10px}
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-.card{padding:17px;border-radius:18px;border:1px solid #ffffff15;background:linear-gradient(145deg,#1c1430,#120d20)}
-.icon{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;background:#8855e829;color:#dfbaff;font-size:19px}
-h2{font-size:16px;margin:13px 0 5px}
-.card p{font-size:13px}
-.steps{padding:20px;border-radius:20px;background:#1a132b;border:1px solid #ffffff17}
-ol{padding-left:21px;margin:12px 0 0;color:#e6dcef}
-li{margin:10px 0;line-height:1.55}
-.note{font-size:12px;color:#a99dbb;margin-top:15px}
-footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:24px;font-size:12px;color:#988ba9}
-@media(max-width:520px){.grid{grid-template-columns:1fr}.hero{padding:23px}.top{margin-bottom:18px}}
+.card h3{font-size:15px;margin:9px 0 5px}
+.card p{font-size:12px;color:var(--muted);line-height:1.55;margin:0}
+.iconbox{width:37px;height:37px;border-radius:12px;background:#9b6cff27;display:grid;place-items:center;color:#e0c8ff;font-size:18px}
+.row{display:flex;align-items:center;gap:10px}
+.grow{flex:1;min-width:0}
+.rowtitle{font-size:14px;font-weight:800;overflow-wrap:anywhere}
+.rowdetail{font-size:11px;color:var(--muted);margin-top:4px;overflow-wrap:anywhere}
+.stack{display:grid;gap:10px}
+.empty{padding:25px;text-align:center;border:1px dashed #ffffff30;border-radius:17px;color:var(--muted);font-size:13px;line-height:1.6}
+.empty b{display:block;color:#f5edff;font-size:14px;margin-bottom:4px}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.smallbtn{font-size:11px;padding:9px 11px;border-radius:10px}
+.search{width:100%;background:#100b1d;border:1px solid var(--line);border-radius:12px;padding:12px;color:white;outline:none;margin-bottom:12px}
+.search:focus{border-color:#a77afa}
+.hiddenfile{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+.drop{border:1px dashed #a77afa88;border-radius:17px;background:#9b6cff0d;padding:18px;text-align:center}
+.drop .big{font-size:25px;color:#dfc5ff}
+.drop strong{display:block;margin:7px 0 5px}
+.drop p{font-size:12px;color:var(--muted);margin:0 0 12px}
+.badge{display:inline-flex;align-items:center;gap:5px;padding:5px 8px;border-radius:999px;background:#ffffff0c;border:1px solid var(--line);font-size:10px;color:#d9cbea}
+.badge.good{color:var(--good);background:#7ce0b011;border-color:#7ce0b033}
+.badge.warn{color:var(--warn);background:#ffca8012;border-color:#ffca8033}
+hr{border:0;border-top:1px solid var(--line);margin:15px 0}
+input[type=text],input[type=search]{color:white}
+.fileline{display:flex;align-items:center;gap:10px;padding:12px;border-radius:13px;background:#ffffff08;border:1px solid var(--line)}
+.fileline .filename{font-size:13px;font-weight:700;overflow-wrap:anywhere}
+.fileline .filesize{font-size:11px;color:var(--muted);margin-top:3px}
+select{width:100%;padding:12px;border:1px solid var(--line);background:#100b1d;color:#fff;border-radius:11px;margin-top:6px}
+.field{margin:13px 0}
+.field label{font-size:10px;letter-spacing:.09em;font-weight:900;color:var(--muted)}
+.callout{padding:13px;border-radius:13px;border:1px solid #ffca8040;background:#ffca800c;color:#e8d8bf;font-size:12px;line-height:1.6}
+.successbox{padding:12px;border:1px solid #7ce0b033;background:#7ce0b00c;border-radius:12px;color:#c9f6df;font-size:12px;line-height:1.5}
+.breadcrumb{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0;color:var(--muted);font-size:11px}
+.breadcrumb button{background:none;border:0;padding:0;color:#d8bdff}
+.archiveitem{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px;border-bottom:1px solid var(--line)}
+.archiveitem:last-child{border:0}
+.archiveitem button{border:1px solid var(--line);background:#ffffff0c;color:#eee2ff;border-radius:9px;padding:7px 10px;font-size:11px}
+.preview{white-space:pre-wrap;overflow-wrap:anywhere;background:#090611;border:1px solid var(--line);border-radius:12px;padding:13px;max-height:50vh;overflow:auto;font:11px/1.5 ui-monospace,SFMono-Regular,monospace}
+footer{margin:25px 0 0;text-align:center;color:#9285a6;font-size:11px;line-height:1.7}
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);padding:12px 16px;background:#34224d;border:1px solid #ffffff30;border-radius:12px;box-shadow:0 10px 32px #0008;font-size:12px;z-index:20;display:none;max-width:90vw}
+@media(max-width:620px){.shell{padding:14px 12px 95px}.hero{padding:19px}.grid{grid-template-columns:1fr}.viewhead{align-items:flex-start;flex-direction:column}.stats{gap:7px}.stat{padding:12px}.stat strong{font-size:21px}.tabs{margin:0 -2px}.top{margin-bottom:13px}}
 </style>
 </head>
 <body>
+<div class="shell">
+<header class="top">
+  <img class="logo" src="./pluto-icon.png" alt="Pluto Sign">
+  <div><div class="brand">PLUTO SIGN</div><div class="tagline">IPA & signing workspace</div></div>
+  <div class="topspacer"></div><span class="pill">WEB EDITION</span>
+</header>
+
+<section class="hero">
+  <div class="eyebrow">IMPORT • INSPECT • ORGANIZE</div>
+  <h1>Your IPA workspace.</h1>
+  <p>This is the interactive GitHub Pages version. Choose files directly from the iPhone Files picker or your computer. Your selected files stay in this browser session and are not uploaded to GitHub.</p>
+  <div class="hero-actions">
+    <button class="primary" type="button" data-go="ipas">＋ Import / View IPAs</button>
+    <button class="secondary" type="button" data-go="sign">Open Sign IPA</button>
+  </div>
+</section>
+
+<section class="stats" aria-label="Workspace counts">
+  <div class="stat"><small>IPA PACKAGES</small><strong id="ipaCount">0</strong></div>
+  <div class="stat"><small>FILES</small><strong id="fileCount">0</strong></div>
+  <div class="stat"><small>SIGNING ASSETS</small><strong id="assetCount">0</strong></div>
+</section>
+
+<nav class="tabs" aria-label="Main navigation">
+  <button class="tab active" data-tab="home">⌂ Home</button>
+  <button class="tab" data-tab="ipas">▣ View IPAs</button>
+  <button class="tab" data-tab="files">▤ Files</button>
+  <button class="tab" data-tab="certs">⚿ Cert Import</button>
+  <button class="tab" data-tab="sign">✓ Sign IPA</button>
+</nav>
+
 <main>
-  <header class="top">
-    <div class="brand">PLUTO SIGN</div>
-    <div class="version">iOS WORKSPACE</div>
-  </header>
+<section class="view active" id="home">
+  <div class="viewhead"><div><h2>Workspace</h2><p class="sub">Your imports and signing preparation are all accessible here.</p></div></div>
+  <div class="grid">
+    <article class="card"><div class="iconbox">▣</div><h3>View IPAs</h3><p>Import one or more IPA packages from Files, inspect app metadata and browse files inside each archive.</p><div class="actions"><button class="primary smallbtn" data-go="ipas">Open IPA Library</button></div></article>
+    <article class="card"><div class="iconbox">▤</div><h3>Files</h3><p>Import documents from your device, view supported text files and download or remove session items.</p><div class="actions"><button class="secondary smallbtn" data-go="files">Open Files</button></div></article>
+    <article class="card"><div class="iconbox">⚿</div><h3>Cert Import</h3><p>Choose your own P12/PFX certificate and provisioning profile for this browser session.</p><div class="actions"><button class="secondary smallbtn" data-go="certs">Import signing files</button></div></article>
+    <article class="card"><div class="iconbox">✓</div><h3>Sign IPA</h3><p>Select the IPA, certificate and profile, check that all inputs are selected and export a signing handoff request.</p><div class="actions"><button class="secondary smallbtn" data-go="sign">Prepare signing handoff</button></div></article>
+  </div>
+  <div class="sectionlabel">QUICK IMPORT</div>
+  <div class="drop">
+    <div class="big">⇧</div><strong>Import IPA from Files</strong>
+    <p>On iPhone, this opens the iOS document picker. Select an .ipa package.</p>
+    <button class="primary" id="homeImportIPA">Choose IPA files</button>
+  </div>
+  <p class="hint" style="font-size:11px;margin:12px 2px 0">Note: refresh or close this page and your session imports clear. This page does not store certificates or private keys persistently.</p>
+</section>
 
-  <section class="hero">
-    <div class="eyebrow">IPA PACKAGE TOOLS • YOUR OWN SIGNING FILES</div>
-    <h1>View. Organize.<br>Prepare to sign.</h1>
-    <p>Pluto Sign brings your IPA library, file imports, certificate storage and signing preparation into one native SwiftUI workspace.</p>
-    <div class="actions">
-      <a class="primary" href="./pluto-sign-home.mobileconfig">↓ Add Home Screen Shortcut</a>
-      <a class="secondary" href="https://github.com/BlueDiamond61/PLuto-sign/tree/main/ios">View iOS source ↗</a>
+<section class="view" id="ipas">
+  <div class="viewhead"><div><h2>View IPAs</h2><p class="sub">Import and inspect IPA packages directly from your device.</p></div><button class="primary" id="importIPA">＋ Import IPA from Files</button></div>
+  <input class="search" id="ipaSearch" type="search" placeholder="Search app name, bundle ID, version or filename…">
+  <div class="stack" id="ipaList"><div class="empty"><b>No IPA packages yet</b>Tap “Import IPA from Files” and choose an .ipa file.</div></div>
+  <div class="card" id="archivePanel" hidden style="margin-top:14px">
+    <div class="row"><div class="grow"><h3 id="archiveTitle">IPA contents</h3><p class="sub" id="archiveSubtitle"></p></div><button class="quiet smallbtn" id="closeArchive">Close</button></div>
+    <input class="search" id="archiveSearch" type="search" placeholder="Search archive file paths…" style="margin-top:12px">
+    <div class="breadcrumb" id="breadcrumbs"></div>
+    <div id="archiveList"></div>
+    <pre class="preview" id="filePreview" hidden></pre>
+  </div>
+</section>
+
+<section class="view" id="files">
+  <div class="viewhead"><div><h2>Files</h2><p class="sub">Import documents from Files. IPA and signing files are routed to their own tabs.</p></div><button class="primary" id="importGeneral">＋ Import from Files</button></div>
+  <div class="stack" id="generalFiles"><div class="empty"><b>No general files imported</b>Use Import from Files to add documents.</div></div>
+</section>
+
+<section class="view" id="certs">
+  <div class="viewhead"><div><h2>Cert Import</h2><p class="sub">Bring your own signing identity and provisioning profile.</p></div></div>
+  <div class="card">
+    <div class="sectionlabel">YOUR CERTIFICATE</div>
+    <div class="drop"><div class="big">⚿</div><strong>Import your P12 / PFX</strong><p>Choose your own .p12 or .pfx identity file. It is not uploaded to the server or stored persistently by this webpage.</p><button class="primary" id="importCert">Choose P12 / PFX</button></div>
+    <div id="certStatus" style="margin-top:12px"><span class="badge warn">No certificate selected</span></div>
+    <hr>
+    <div class="sectionlabel">PROVISIONING PROFILE</div>
+    <div class="drop"><div class="big">▧</div><strong>Import your .mobileprovision</strong><p>Select a provisioning profile issued for your app.</p><button class="secondary" id="importProfile">Choose provisioning profile</button></div>
+    <div id="profileStatus" style="margin-top:12px"><span class="badge warn">No profile selected</span></div>
+  </div>
+  <div class="callout" style="margin-top:13px">For privacy, this web page only keeps the chosen file references in memory for the current page session. It does not upload private keys, P12 files or profiles. Browser-based selection is not certificate validation: the P12 password, identity chain and profile compatibility are not checked here. Use the native app or an authorized Mac workflow for secure Keychain storage and signing validation.</div>
+</section>
+
+<section class="view" id="sign">
+  <div class="viewhead"><div><h2>Sign IPA</h2><p class="sub">Select your IPA and your own certificate/profile to prepare a signing handoff.</p></div></div>
+  <div class="card stack">
+    <div class="field"><label for="signIPA">1 · IPA PACKAGE</label><select id="signIPA"><option value="">Select an imported IPA</option></select><div class="actions"><button class="quiet smallbtn" id="signImportIPA">Import IPA from Files</button></div></div>
+    <div class="field"><label for="signCert">2 · YOUR P12 / PFX CERTIFICATE</label><select id="signCert"><option value="">Select your certificate</option></select><div class="actions"><button class="quiet smallbtn" data-go="certs">Import certificate</button></div></div>
+    <div class="field"><label for="signProfile">3 · PROVISIONING PROFILE</label><select id="signProfile"><option value="">Select your profile</option></select><div class="actions"><button class="quiet smallbtn" data-go="certs">Import profile</button></div></div>
+    <hr>
+    <div class="sectionlabel">INPUT CHECKLIST</div>
+    <div id="checklist" class="stack">
+      <div class="fileline"><span>○</span><div class="grow">IPA selected</div></div>
+      <div class="fileline"><span>○</span><div class="grow">Certificate selected</div></div>
+      <div class="fileline"><span>○</span><div class="grow">Profile selected</div></div>
     </div>
-  </section>
-
-  <div class="section-title">INSIDE THE APP</div>
-  <section class="grid">
-    <article class="card">
-      <div class="icon">▣</div>
-      <h2>View IPAs</h2>
-      <p>Import one or multiple IPA files, view app name, bundle ID, version, build and file size, then open each package.</p>
-    </article>
-    <article class="card">
-      <div class="icon">⌕</div>
-      <h2>IPA Archive Browser</h2>
-      <p>Browse folders and search package paths for dylibs, frameworks, plists and readable text files.</p>
-    </article>
-    <article class="card">
-      <div class="icon">▤</div>
-      <h2>Files & Imports</h2>
-      <p>Import general documents from the iOS Files picker. IPA and provisioning files route to their dedicated sections.</p>
-    </article>
-    <article class="card">
-      <div class="icon">⚿</div>
-      <h2>Import Your Certificate</h2>
-      <p>Bring your own password-protected P12/PFX identity. Pluto Sign validates the password and stores the file in iOS Keychain without retaining the password.</p>
-    </article>
-    <article class="card">
-      <div class="icon">▧</div>
-      <h2>Provisioning Profiles</h2>
-      <p>Import your own .mobileprovision file and keep it in the app's private storage for signing preparation.</p>
-    </article>
-    <article class="card">
-      <div class="icon">✓</div>
-      <h2>Sign IPA Preparation</h2>
-      <p>Select an IPA, certificate and provisioning profile, check that the required inputs are present and export a signing handoff request.</p>
-    </article>
-    <article class="card">
-      <div class="icon">↻</div>
-      <h2>Version Tools</h2>
-      <p>Audit embedded app and extension versions and synchronize Info.plist metadata in a separate package copy.</p>
-    </article>
-    <article class="card">
-      <div class="icon">▣</div>
-      <h2>Local File Library</h2>
-      <p>Keep imported files on device, share documents and remove items you no longer need.</p>
-    </article>
-  </section>
-
-  <div class="section-title">ADD THE PLUTO SIGN SHORTCUT</div>
-  <section class="steps">
-    <strong>On iPhone in Safari</strong>
-    <ol>
-      <li>Tap <strong>Add Home Screen Shortcut</strong>.</li>
-      <li>Tap <strong>Allow</strong> when iOS asks to download the configuration profile.</li>
-      <li>Open <strong>Settings</strong> and tap <strong>Profile Downloaded</strong>.</li>
-      <li>Review the Pluto Sign profile and tap <strong>Install</strong>. The updated profile includes a custom Pluto Sign icon.</li>
-    </ol>
-  </section>
-
-  <p class="note">Signing note: importing your own P12/PFX and profile does not by itself sign an IPA. The iOS app prepares a signing handoff and checks that the selected inputs are present; Apple code signing must be completed in an authorized macOS workflow that verifies certificate/profile compatibility, bundle ID, entitlements and distribution method. The current GitHub Actions artifact is for iOS Simulator, not an iPhone-installable IPA.</p>
-  <p class="note">The .mobileconfig installs only a removable website shortcut and its icon. It does not install the native app, certificates, VPN or device management.</p>
-
-  <footer>
-    <span>Pluto Sign • iOS workspace</span>
-    <a href="https://github.com/BlueDiamond61/PLuto-sign">GitHub repository</a>
-  </footer>
+    <div class="actions"><button class="secondary" id="checkInputs">Check selected inputs</button><button class="primary" id="exportRequest" disabled>Export signing handoff JSON</button></div>
+    <div id="signMessage"></div>
+  </div>
+  <div class="callout" style="margin-top:13px">This web workspace prepares a request only. It does not run Apple's code-signing tools, modify signatures, install apps or produce a signed IPA. A selected-file check is not proof that a certificate and profile match. Actual signing must be completed through an authorized Apple workflow that validates the bundle ID, entitlements, profile expiry and distribution method.</div>
+</section>
 </main>
+
+<footer>
+  <p>Pluto Sign Web Workspace · Files stay in this browser session.</p>
+  <p><a href="https://github.com/BlueDiamond61/PLuto-sign/tree/main/ios">Native iOS source</a> · <a href="./pluto-sign-home.mobileconfig">Home Screen shortcut profile</a> · <a href="https://github.com/BlueDiamond61/PLuto-sign">GitHub repository</a></p>
+</footer>
+</div>
+<div class="toast" id="toast" role="status"></div>
+
+<input class="hiddenfile" id="ipaPicker" type="file" accept=".ipa,application/octet-stream" multiple>
+<input class="hiddenfile" id="generalPicker" type="file" multiple>
+<input class="hiddenfile" id="certPicker" type="file" accept=".p12,.pfx,application/x-pkcs12">
+<input class="hiddenfile" id="profilePicker" type="file" accept=".mobileprovision,application/octet-stream">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script>
+(function(){
+"use strict";
+const state={ipas:[],files:[],cert:null,profile:null,archiveId:null,archivePath:"",archiveZip:null,archiveNames:[]};
+const $=id=>document.getElementById(id);
+const byId=id=>state.ipas.find(x=>x.id===id);
+function escapeHTML(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+function sizeText(n){if(!Number.isFinite(n))return "—";const units=["B","KB","MB","GB"];let i=0;while(n>=1024&&i<3){n/=1024;i++;}return (i===0?String(Math.round(n)):n.toFixed(1))+" "+units[i];}
+function toast(msg){const el=$("toast");el.textContent=msg;el.style.display="block";clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.style.display="none",2700);}
+function showTab(name){document.querySelectorAll(".tab").forEach(b=>b.classList.toggle("active",b.dataset.tab===name));document.querySelectorAll(".view").forEach(v=>v.classList.toggle("active",v.id===name));window.scrollTo({top:0,behavior:"smooth"});if(name==="sign")refreshSigning();}
+document.querySelectorAll("[data-tab]").forEach(b=>b.addEventListener("click",()=>showTab(b.dataset.tab)));
+document.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=>showTab(b.dataset.go)));
+function updateCounts(){$("ipaCount").textContent=state.ipas.length;$("fileCount").textContent=state.files.length;$("assetCount").textContent=(state.cert?1:0)+(state.profile?1:0);}
+function parseXMLPlist(text){
+ const doc=new DOMParser().parseFromString(text,"application/xml");if(doc.querySelector("parsererror"))return null;
+ const root=doc.querySelector("plist > dict");if(!root)return null;const out={};const children=Array.from(root.children);
+ for(let i=0;i<children.length;i++){if(children[i].tagName!=="key"||!children[i+1])continue;const key=children[i].textContent;const value=children[++i];if(value.tagName==="string"||value.tagName==="integer"||value.tagName==="real")out[key]=value.textContent;else if(value.tagName==="true")out[key]=true;else if(value.tagName==="false")out[key]=false;}
+ return out;
+}
+function parseBinaryPlist(buffer){
+ const b=new Uint8Array(buffer);if(b.length<40||String.fromCharCode.apply(null,b.slice(0,8))!=="bplist00")return null;
+ const t=b.length-32,offSize=b[t+6],refSize=b[t+7];
+ const read=(pos,len)=>{let n=0;for(let i=0;i<len;i++)n=n*256+b[pos+i];return n;};
+ const numObjects=read(t+8,8),top=read(t+16,8),table=read(t+24,8);
+ if(!numObjects||numObjects>200000||top>=numObjects||!offSize||!refSize)return null;
+ const offsets=[];for(let i=0;i<numObjects;i++)offsets.push(read(table+i*offSize,offSize));
+ const cache=new Map(),active=new Set();
+ function length(info,pos){if(info<15)return [info,pos];const marker=b[pos++];if((marker>>4)!==1)return [0,pos];const n=1<<(marker&15);return [read(pos,n),pos+n];}
+ function obj(i){
+  if(cache.has(i))return cache.get(i);if(i>=numObjects||active.has(i))return null;active.add(i);
+  let p=offsets[i];const marker=b[p++],type=marker>>4,info=marker&15;let value=null;
+  if(type===0){value=info===8?false:info===9?true:null;}
+  else if(type===1){const n=1<<info;value=read(p,n);if(n===8&&value>Number.MAX_SAFE_INTEGER)value=String(value);}
+  else if(type===2){const n=1<<info;if(n===4){const v=new DataView(buffer,p,n).getFloat32(0,false);value=v;}else if(n===8){value=new DataView(buffer,p,n).getFloat64(0,false);}}
+  else if(type===3){const v=new DataView(buffer,p,8).getFloat64(0,false);value=new Date(Date.UTC(2001,0,1)+v*1000).toISOString();}
+  else if(type===4){let pair=length(info,p),n=pair[0],start=pair[1];value=b.slice(start,start+n);}
+  else if(type===5||type===6){let pair=length(info,p),n=pair[0],start=pair[1];if(type===5)value=new TextDecoder("ascii").decode(b.slice(start,start+n));else{let s="";for(let j=0;j<n;j++)s+=String.fromCharCode(read(start+j*2,2));value=s;}}
+  else if(type===8){value=read(p,info+1);}
+  else if(type===10){let pair=length(info,p),n=pair[0],start=pair[1];value=[];for(let j=0;j<n;j++)value.push(obj(read(start+j*refSize,refSize)));}
+  else if(type===13){let pair=length(info,p),n=pair[0],start=pair[1],values=start+n*refSize;value={};for(let j=0;j<n;j++){let k=obj(read(start+j*refSize,refSize));let v=obj(read(values+j*refSize,refSize));value[String(k)]=v;}}
+  active.delete(i);cache.set(i,value);return value;
+ }
+ return obj(top);
+}
+function parsePlist(buffer){
+ const first=new Uint8Array(buffer,0,Math.min(buffer.byteLength,8));
+ if(String.fromCharCode.apply(null,first)==="bplist00")return parseBinaryPlist(buffer);
+ return parseXMLPlist(new TextDecoder().decode(buffer));
+}
+async function importIPAs(files){
+ if(!window.JSZip){toast("Archive reader could not load. Check your internet connection and reload.");return;}
+ for(const file of files){
+  if(!file.name.toLowerCase().endsWith(".ipa")){toast(file.name+" is not an .ipa file.");continue;}
+  try{
+   const zip=await JSZip.loadAsync(file,{checkCRC32:false});
+   const names=Object.keys(zip.files).filter(n=>!zip.files[n].dir);
+   if(!names.some(n=>n.startsWith("Payload/")&&n.endsWith(".app/Info.plist")))throw new Error("No Payload/*.app/Info.plist found.");
+   const infoPath=names.filter(n=>/^Payload\/[^/]+\.app\/Info\.plist$/.test(n)).sort((a,b)=>a.length-b.length)[0];
+   let meta={};try{const data=await zip.file(infoPath).async("arraybuffer");meta=parsePlist(data)||{};}catch(e){}
+   const record={id:"ipa-"+Date.now()+"-"+Math.random().toString(36).slice(2),file:file,zip:zip,names:names,
+    app:meta.CFBundleDisplayName||meta.CFBundleName||file.name.replace(/\.ipa$/i,""),
+    bundle:meta.CFBundleIdentifier||"Metadata unavailable",version:meta.CFBundleShortVersionString||"—",build:meta.CFBundleVersion||"—",size:file.size};
+   state.ipas.unshift(record);
+   toast("Imported "+record.app);
+  }catch(err){toast("Could not read "+file.name+": "+err.message);}
+ }
+ updateCounts();renderIPAs();refreshSigning();showTab("ipas");
+}
+function renderIPAs(){
+ const q=$("ipaSearch").value.trim().toLowerCase();
+ const items=state.ipas.filter(x=>(x.app+" "+x.bundle+" "+x.version+" "+x.file.name).toLowerCase().includes(q));
+ $("ipaList").innerHTML=items.length?items.map(x=>'<div class="card"><div class="row"><div class="iconbox">▣</div><div class="grow"><div class="rowtitle">'+escapeHTML(x.app)+'</div><div class="rowdetail">'+escapeHTML(x.bundle)+'</div><div class="rowdetail">v'+escapeHTML(x.version)+' · build '+escapeHTML(x.build)+' · '+sizeText(x.size)+'</div></div><span class="badge good">Imported</span></div><div class="actions"><button class="primary smallbtn" data-open="'+x.id+'">Browse IPA</button><button class="secondary smallbtn" data-share="'+x.id+'">Share IPA</button><button class="danger smallbtn" data-removeipa="'+x.id+'">Remove</button></div></div>').join(''):'<div class="empty"><b>No matching IPA packages</b>Choose an IPA file from Files to add it to this session.</div>';
+ $("ipaList").querySelectorAll("[data-open]").forEach(b=>b.addEventListener("click",()=>openArchive(b.dataset.open)));
+ $("ipaList").querySelectorAll("[data-share]").forEach(b=>b.addEventListener("click",()=>downloadIPA(b.dataset.share)));
+ $("ipaList").querySelectorAll("[data-removeipa]").forEach(b=>b.addEventListener("click",()=>{state.ipas=state.ipas.filter(x=>x.id!==b.dataset.removeipa);if(state.archiveId===b.dataset.removeipa)closeArchive();updateCounts();renderIPAs();refreshSigning();}));
+}
+function downloadBlob(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);}
+function downloadIPA(id){const x=byId(id);if(x)downloadBlob(x.file,x.file.name);}
+function openArchive(id){const x=byId(id);if(!x)return;state.archiveId=id;state.archiveZip=x.zip;state.archiveNames=x.names;state.archivePath="";$("archivePanel").hidden=false;$("archiveTitle").textContent=x.app;$("archiveSubtitle").textContent=x.file.name+" · "+x.names.length+" files";$("archiveSearch").value="";$("filePreview").hidden=true;renderArchive();$("archivePanel").scrollIntoView({behavior:"smooth",block:"start"});}
+function closeArchive(){state.archiveId=null;state.archiveZip=null;$("archivePanel").hidden=true;}
+$("closeArchive").addEventListener("click",closeArchive);
+function renderArchive(){
+ const q=$("archiveSearch").value.trim().toLowerCase(),prefix=state.archivePath?state.archivePath+"/":"";
+ $("breadcrumbs").innerHTML='<button data-path="">Payload root</button>'+state.archivePath.split("/").filter(Boolean).map((part,i,all)=>'<span>›</span><button data-path="'+escapeHTML(all.slice(0,i+1).join("/"))+'">'+escapeHTML(part)+'</button>').join("");
+ $("breadcrumbs").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{state.archivePath=b.dataset.path;renderArchive();}));
+ let rows=new Map();
+ if(q){
+  state.archiveNames.filter(n=>n.toLowerCase().includes(q)).slice(0,400).forEach(n=>rows.set(n,{path:n,name:n.split("/").pop(),folder:false}));
+ }else{
+  state.archiveNames.forEach(n=>{if(!n.startsWith(prefix))return;const rest=n.slice(prefix.length);if(!rest)return;const parts=rest.split("/");const isFolder=parts.length>1;const child=prefix+parts[0];if(!rows.has(child))rows.set(child,{path:child,name:parts[0],folder:isFolder});});
+ }
+ const list=Array.from(rows.values()).sort((a,b)=>a.folder===b.folder?a.name.localeCompare(b.name):a.folder?-1:1);
+ $("archiveList").innerHTML=list.length?list.map(r=>'<div class="archiveitem"><div class="row grow"><span>'+(r.folder?"📁":"📄")+'</span><div class="grow"><div class="rowtitle">'+escapeHTML(r.name)+'</div><div class="rowdetail">'+escapeHTML(r.path)+'</div></div></div><button data-entry="'+escapeHTML(r.path)+'" data-folder="'+r.folder+'">'+(r.folder?"Open":"Preview")+'</button></div>').join(""):'<div class="empty">No matching entries in this folder.</div>';
+ $("archiveList").querySelectorAll("[data-entry]").forEach(b=>b.addEventListener("click",()=>{if(b.dataset.folder==="true"){state.archivePath=b.dataset.entry;renderArchive();}else previewEntry(b.dataset.entry);}));
+}
+$("archiveSearch").addEventListener("input",renderArchive);
+async function previewEntry(path){
+ const x=byId(state.archiveId);if(!x)return;const entry=x.zip.file(path),out=$("filePreview");if(!entry)return;
+ const ext=path.split(".").pop().toLowerCase();
+ if(["txt","json","xml","plist","strings","md","csv","html","css","js"].includes(ext)){
+  try{let text=await entry.async("string");if(ext==="plist"){const meta=parseXMLPlist(text);if(meta)text=JSON.stringify(meta,null,2);}out.textContent=text.slice(0,120000);out.hidden=false;}catch(e){toast("Could not preview this file.");}
+ }else{out.textContent="This looks like a binary or unsupported file. It is listed in the IPA archive but no text preview is available.";out.hidden=false;}
+}
+$("ipaSearch").addEventListener("input",renderIPAs);
+function routeFile(file){
+ const ext=file.name.split(".").pop().toLowerCase();
+ if(ext==="ipa"){importIPAs([file]);return;}
+ if(ext==="p12"||ext==="pfx"){state.cert=file;renderAssets();updateCounts();refreshSigning();showTab("certs");toast("Certificate file selected for this session.");return;}
+ if(ext==="mobileprovision"){state.profile=file;renderAssets();updateCounts();refreshSigning();showTab("certs");toast("Provisioning profile selected for this session.");return;}
+ state.files.unshift(file);updateCounts();renderFiles();toast("Imported "+file.name);
+}
+function renderFiles(){
+ $("generalFiles").innerHTML=state.files.length?state.files.map((f,i)=>'<div class="fileline"><span class="iconbox">▤</span><div class="grow"><div class="filename">'+escapeHTML(f.name)+'</div><div class="filesize">'+sizeText(f.size)+' · '+escapeHTML(f.type||"file")+'</div></div><button class="quiet smallbtn" data-downloadfile="'+i+'">Download</button><button class="danger smallbtn" data-removefile="'+i+'">×</button></div>').join(""):'<div class="empty"><b>No general files imported</b>Use the button above to choose documents from your device.</div>';
+ $("generalFiles").querySelectorAll("[data-downloadfile]").forEach(b=>b.addEventListener("click",()=>{const f=state.files[Number(b.dataset.downloadfile)];if(f)downloadBlob(f,f.name);}));
+ $("generalFiles").querySelectorAll("[data-removefile]").forEach(b=>b.addEventListener("click",()=>{state.files.splice(Number(b.dataset.removefile),1);updateCounts();renderFiles();}));
+}
+function renderAssets(){
+ $("certStatus").innerHTML=state.cert?'<span class="badge good">Selected in this session</span><div class="fileline" style="margin-top:8px"><div class="grow"><div class="filename">'+escapeHTML(state.cert.name)+'</div><div class="filesize">'+sizeText(state.cert.size)+' · not uploaded</div></div><button class="danger smallbtn" id="removeCert">Remove</button></div>':'<span class="badge warn">No certificate selected</span>';
+ $("profileStatus").innerHTML=state.profile?'<span class="badge good">Selected in this session</span><div class="fileline" style="margin-top:8px"><div class="grow"><div class="filename">'+escapeHTML(state.profile.name)+'</div><div class="filesize">'+sizeText(state.profile.size)+' · not uploaded</div></div><button class="danger smallbtn" id="removeProfile">Remove</button></div>':'<span class="badge warn">No profile selected</span>';
+ if($("removeCert"))$("removeCert").addEventListener("click",()=>{state.cert=null;renderAssets();updateCounts();refreshSigning();});
+ if($("removeProfile"))$("removeProfile").addEventListener("click",()=>{state.profile=null;renderAssets();updateCounts();refreshSigning();});
+}
+function refreshSigning(){
+ const fill=(id,items,placeholder)=>{const sel=$(id),old=sel.value;sel.innerHTML='<option value="">'+placeholder+'</option>'+items.map(x=>'<option value="'+x.id+'">'+escapeHTML(x.label)+'</option>').join("");if(items.some(x=>x.id===old))sel.value=old;};
+ fill("signIPA",state.ipas.map(x=>({id:x.id,label:x.app+" · "+x.version})),"Select an imported IPA");
+ fill("signCert",state.cert?[{id:"cert",label:state.cert.name}]:[],"Select your certificate");
+ fill("signProfile",state.profile?[{id:"profile",label:state.profile.name}]:[],"Select your profile");
+ updateChecklist();
+}
+function updateChecklist(){
+ const rows=[["IPA package",!!$("signIPA").value],["P12/PFX certificate",!!$("signCert").value],["Provisioning profile",!!$("signProfile").value]];
+ $("checklist").innerHTML=rows.map(x=>'<div class="fileline"><span style="color:'+(x[1]?"var(--good)":"var(--muted)")+'">'+(x[1]?"✓":"○")+'</span><div class="grow">'+x[0]+'</div><span class="badge '+(x[1]?"good":"warn")+'">'+(x[1]?"Selected":"Missing")+'</span></div>').join("");
+ $("exportRequest").disabled=!rows.every(x=>x[1]);
+}
+["signIPA","signCert","signProfile"].forEach(id=>$(id).addEventListener("change",updateChecklist));
+function checkInputs(){
+ updateChecklist();const all=!!$("signIPA").value&&!!$("signCert").value&&!!$("signProfile").value;
+ $("signMessage").innerHTML=all?'<div class="successbox">All three files are selected in this browser session. This confirms selection only; it does not validate the certificate password, profile compatibility or code signature.</div>':'<div class="callout">Select an IPA, your P12/PFX certificate and a provisioning profile to complete the input checklist.</div>';
+}
+$("checkInputs").addEventListener("click",checkInputs);
+$("exportRequest").addEventListener("click",()=>{
+ const ipa=byId($("signIPA").value);if(!ipa||!state.cert||!state.profile)return;
+ const request={application:ipa.app,bundle_id:ipa.bundle,version:ipa.version,build:ipa.build,ipa_filename:ipa.file.name,certificate_filename:state.cert.name,provisioning_profile_filename:state.profile.name,created_at:new Date().toISOString(),status:"Handoff request only. No signing has been performed.",note:"Complete signing with an authorized Apple workflow on macOS. Do not send private keys or certificate passwords in this JSON."};
+ downloadBlob(new Blob([JSON.stringify(request,null,2)],{type:"application/json"}),"PlutoSign-SigningRequest.json");
+ $("signMessage").innerHTML='<div class="successbox">Signing handoff JSON exported. The IPA has not been signed.</div>';
+});
+$("homeImportIPA").addEventListener("click",()=>$("ipaPicker").click());
+$("importIPA").addEventListener("click",()=>$("ipaPicker").click());
+$("signImportIPA").addEventListener("click",()=>$("ipaPicker").click());
+$("importGeneral").addEventListener("click",()=>$("generalPicker").click());
+$("importCert").addEventListener("click",()=>$("certPicker").click());
+$("importProfile").addEventListener("click",()=>$("profilePicker").click());
+$("ipaPicker").addEventListener("change",e=>{if(e.target.files.length)importIPAs(Array.from(e.target.files));e.target.value="";});
+$("generalPicker").addEventListener("change",e=>{Array.from(e.target.files).forEach(routeFile);e.target.value="";renderFiles();});
+$("certPicker").addEventListener("change",e=>{if(e.target.files[0]){state.cert=e.target.files[0];renderAssets();updateCounts();refreshSigning();toast("P12/PFX selected for this session.");}e.target.value="";});
+$("profilePicker").addEventListener("change",e=>{if(e.target.files[0]){state.profile=e.target.files[0];renderAssets();updateCounts();refreshSigning();toast("Provisioning profile selected for this session.");}e.target.value="";});
+updateCounts();renderIPAs();renderFiles();renderAssets();refreshSigning();
+})();
+</script>
 </body>
 </html>
