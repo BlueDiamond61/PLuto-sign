@@ -1,23 +1,22 @@
 # Pluto Sign iOS — workspace update
 
-The SwiftUI workspace now includes a redesigned dashboard and five main areas: Home, IPAs, Files, Assets and Signing.
+The app now has five main tabs: Home, View IPAs, Files, Cert Import and Sign IPA. The dashboard and shared panels use the Pluto Sign purple theme, and a custom AppIcon asset catalog has been added.
 
 ## Included
-- Multi-select IPA import through the iOS Files picker.
-- IPA metadata display and local package library.
-- Archive browser and search for file paths, dylibs, frameworks, property lists and readable text.
-- Separate Files area for general local documents with share and delete actions.
-- P12/PFX import with password validation and Keychain storage.
-- Provisioning profile import and inventory.
-- Signing input selection, basic local presence checks and signing request export.
-- Embedded version audit and metadata-only synchronization for app and extension property lists.
-- Library reload on app launch and pull-to-refresh.
-- Pluto Sign Home Screen profile download page.
+- Multi-select IPA import and IPA metadata list.
+- Per-IPA archive browser and search.
+- General document import, sharing and deletion.
+- Own P12/PFX import with local password validation and iOS Keychain storage.
+- Own provisioning-profile import and private app storage.
+- Sign IPA preparation screen with direct IPA, P12/PFX and profile imports.
+- Input presence checklist, signing-readiness messaging and signing handoff request export.
+- Embedded app/extension version audit and metadata-only synchronization.
+- Refreshed public homepage and branded Web Clip configuration profile icon.
 
 ## Signing and installation limits
-The iOS app organizes signing inputs and prepares a request; it does not sign or install arbitrary IPAs. A local selection check does not prove certificate/profile compatibility. The authorized macOS signing workflow must validate bundle ID, entitlements, distribution method, certificate pairing and signature. Modified package metadata invalidates its original signature.
+The iOS app organizes and checks signing inputs and exports a handoff request; it does not run Apple's macOS code-signing tools and it does not claim to sign an IPA. Input presence is not proof of compatibility. An authorized macOS signing workflow must validate the bundle ID, entitlements, profile expiry, distribution method, certificate pairing and final signature.
 
-The .mobileconfig profile adds only a removable Web Clip shortcut to the public Pluto Sign homepage. It does not install the native app, certificates or device management.
+The `.mobileconfig` installs only a removable website shortcut and icon. It does not install the native app, certificates or device management.
 
 The automated GitHub Actions artifact is an iOS Simulator build, not an installable device IPA. Physical-device distribution requires a properly signed device build through an authorized Apple workflow.
 
