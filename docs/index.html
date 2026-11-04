@@ -498,6 +498,7 @@ function renderIPAs(){
  $("ipaList").querySelectorAll("[data-removeipa]").forEach(b=>b.addEventListener("click",()=>{const removedId=b.dataset.removeipa;state.ipas=state.ipas.filter(x=>x.id!==removedId);removeSavedIPA(removedId).catch(err=>toast("Local deletion failed: "+err.message));if(state.archiveId===removedId)closeArchive();updateCounts();renderIPAs();refreshSigning();renderRobloxMonitor();}));
  const importButton=$("importRobloxIPA");
  if(importButton)importButton.addEventListener("click",()=>$("robloxPicker").click());
+ renderMultiWindows();
 }
 function downloadBlob(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);}
 function downloadIPA(id){const x=byId(id);if(!x)return;if(x.modified){exportModifiedIPA(x);return;}downloadBlob(x.file,x.file.name);}
@@ -984,6 +985,105 @@ async function previewEntry(path){
  }
  out.scrollIntoView({behavior:"smooth",block:"nearest"});
 }
+
+const multiWindows={
+ a:{id:"",path:"",query:"",objectURL:null},
+ b:{id:"",path:"",query:"",objectURL:null}
+};
+function renderMultiWindows(){
+ const selectA=$("multiSelectA"),selectB=$("multiSelectB");
+ if(!selectA||!selectB)return;
+ const options='<option value="">Choose an IPA</option>'+state.ipas.map(x=>'<option value="'+escapeHTML(x.id)+'">'+escapeHTML((isRobloxIPA(x)?"Roblox · ":"")+x.app+" · "+x.version+" · "+x.file.name)+'</option>').join("");
+ const oldA=multiWindows.a.id,oldB=multiWindows.b.id;
+ selectA.innerHTML=options;selectB.innerHTML=options;
+ multiWindows.a.id=oldA&&byId(oldA)?oldA:oldA?"":(state.ipas.find(x=>!isRobloxIPA(x))||state.ipas[0]||{}).id||"";
+ multiWindows.b.id=oldB&&byId(oldB)?oldB:oldB?"":(state.ipas.find(isRobloxIPA)||{}).id||"";
+ selectA.value=multiWindows.a.id;selectB.value=multiWindows.b.id;
+ renderMultiPane("a");renderMultiPane("b");
+}
+function setMultiIPA(which,id){
+ const pane=multiWindows[which],item=byId(id);
+ pane.id=item?id:"";pane.path="";pane.query="";
+ $("multiSearch"+which.toUpperCase()).value="";
+ const preview=$("multiPreview"+which.toUpperCase());
+ if(pane.objectURL){URL.revokeObjectURL(pane.objectURL);pane.objectURL=null;}
+ preview.hidden=true;preview.replaceChildren();
+ renderMultiPane(which);
+ if(item)locateAppFolder(item).then(folder=>{
+  if(pane.id===item.id){pane.path=folder||"";renderMultiPane(which);}
+ }).catch(()=>{});
+}
+function renderMultiPane(which){
+ const pane=multiWindows[which],suffix=which.toUpperCase(),item=byId(pane.id);
+ const meta=$("multiMeta"+suffix),list=$("multiList"+suffix),crumb=$("multiCrumb"+suffix);
+ if(!meta||!list||!crumb)return;
+ if(!item){
+  meta.textContent=state.ipas.length?"Select a package from your library.":"Import an IPA to start.";
+  list.innerHTML='<div class="empty">No package selected.</div>';crumb.replaceChildren();return;
+ }
+ meta.textContent=item.app+" · v"+item.version+" · "+item.bundle+" · "+sizeText(item.size);
+ const prefix=pane.path?pane.path+"/":"",q=pane.query.trim().toLowerCase(),rows=new Map();
+ if(q)item.names.filter(n=>n.toLowerCase().includes(q)).slice(0,250).forEach(n=>rows.set(n,{path:n,name:n.split("/").pop(),folder:false}));
+ else item.names.forEach(n=>{
+  if(!n.startsWith(prefix))return;
+  const rest=n.slice(prefix.length);if(!rest)return;
+  const parts=rest.split("/"),folder=parts.length>1,child=prefix+parts[0];
+  if(!rows.has(child))rows.set(child,{path:child,name:parts[0],folder});
+ });
+ const sorted=Array.from(rows.values()).sort((x,y)=>x.folder===y.folder?x.name.localeCompare(y.name):x.folder?-1:1);
+ list.innerHTML=sorted.length?sorted.map(row=>'<div class="archiveitem"><div class="row grow"><span>'+(row.folder?"📁":"📄")+'</span><div class="grow"><div class="rowtitle">'+escapeHTML(row.name)+'</div><div class="rowdetail">'+escapeHTML(row.path)+'</div></div></div><button data-mw-entry="'+escapeHTML(row.path)+'" data-mw-folder="'+row.folder+'">'+(row.folder?"Open":"Preview")+'</button></div>').join(""):'<div class="empty">No matching files in this folder.</div>';
+ list.querySelectorAll("[data-mw-entry]").forEach(button=>button.addEventListener("click",()=>{
+  if(button.dataset.mwFolder==="true"){pane.path=button.dataset.mwEntry;renderMultiPane(which);}
+  else previewMultiEntry(which,button.dataset.mwEntry);
+ }));
+ crumb.innerHTML='<button data-mw-path="">App root</button>'+pane.path.split("/").filter(Boolean).map((part,index,all)=>'<span>›</span><button data-mw-path="'+escapeHTML(all.slice(0,index+1).join("/"))+'">'+escapeHTML(part)+'</button>').join("");
+ crumb.querySelectorAll("[data-mw-path]").forEach(button=>button.addEventListener("click",()=>{pane.path=button.dataset.mwPath;renderMultiPane(which);}));
+}
+async function previewMultiEntry(which,path){
+ const pane=multiWindows[which],item=byId(pane.id),out=$("multiPreview"+which.toUpperCase()),entry=item&&item.zip.file(path);
+ if(!entry||!out)return;
+ if(pane.objectURL){URL.revokeObjectURL(pane.objectURL);pane.objectURL=null;}
+ out.replaceChildren();out.hidden=false;
+ const heading=document.createElement("div");heading.className="filepreview-head";heading.textContent=path;out.appendChild(heading);
+ const ext=(path.split(".").pop()||"").toLowerCase();
+ try{
+  const imageTypes={png:"image/png",jpg:"image/jpeg",jpeg:"image/jpeg",gif:"image/gif",webp:"image/webp",bmp:"image/bmp",heic:"image/heic"};
+  if(imageTypes[ext]){
+   const blob=await entry.async("blob");
+   pane.objectURL=URL.createObjectURL(new Blob([blob],{type:imageTypes[ext]}));
+   const img=document.createElement("img");img.alt="Preview of "+path;img.src=pane.objectURL;out.appendChild(img);
+  }else if(["txt","json","xml","plist","strings","md","csv","html","css","js","yaml","yml","ini","cfg","conf","log","entitlements"].includes(ext)){
+   if(entry._data&&entry._data.uncompressedSize>4*1024*1024)throw new Error("This text file exceeds the 4 MB preview limit.");
+   let value;
+   if(ext==="plist")value=JSON.stringify(parsePlistFull(await entry.async("arraybuffer")),null,2);
+   else{
+    const raw=await entry.async("string");
+    if(ext==="json"){try{value=JSON.stringify(JSON.parse(raw),null,2);}catch(e){value=raw;}}
+    else value=raw;
+   }
+   const pre=document.createElement("pre");
+   pre.textContent=value.slice(0,100000)+(value.length>100000?"\n\n[Preview truncated.]":"");
+   out.appendChild(pre);
+  }else{
+   const note=document.createElement("div");note.className="callout";
+   note.textContent="Binary or executable file ("+sizeText(entry._data&&entry._data.uncompressedSize||0)+"). This viewer lists files but does not disassemble or run executable code.";
+   out.appendChild(note);
+  }
+ }catch(error){
+  const note=document.createElement("div");note.className="callout";note.textContent="Preview unavailable: "+error.message;out.appendChild(note);
+ }
+ out.scrollIntoView({behavior:"smooth",block:"nearest"});
+}
+$("openMultiWindows").addEventListener("click",()=>{
+ $("multiWindowPanel").hidden=false;renderMultiWindows();
+ $("multiWindowPanel").scrollIntoView({behavior:"smooth",block:"start"});
+});
+$("closeMultiWindows").addEventListener("click",()=>{$("multiWindowPanel").hidden=true;});
+$("multiSelectA").addEventListener("change",e=>setMultiIPA("a",e.target.value));
+$("multiSelectB").addEventListener("change",e=>setMultiIPA("b",e.target.value));
+$("multiSearchA").addEventListener("input",e=>{multiWindows.a.query=e.target.value;renderMultiPane("a");});
+$("multiSearchB").addEventListener("input",e=>{multiWindows.b.query=e.target.value;renderMultiPane("b");});
+
 $("ipaSearch").addEventListener("input",renderIPAs);
 function routeFile(file){
  const ext=file.name.split(".").pop().toLowerCase();
