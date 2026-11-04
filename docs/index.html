@@ -89,6 +89,12 @@ select{width:100%;padding:12px;border:1px solid var(--line);background:#100b1d;c
 .archiveitem button{border:1px solid var(--line);background:#ffffff0c;color:#eee2ff;border-radius:9px;padding:7px 10px;font-size:11px}
 .preview{white-space:pre-wrap;overflow-wrap:anywhere;background:#090611;border:1px solid var(--line);border-radius:12px;padding:13px;max-height:50vh;overflow:auto;font:11px/1.5 ui-monospace,SFMono-Regular,monospace}
 footer{margin:25px 0 0;text-align:center;color:#9285a6;font-size:11px;line-height:1.7}
+
+textarea.preview{font:11px/1.55 ui-monospace,SFMono-Regular,monospace;background:#090611;border:1px solid var(--line);border-radius:12px;padding:13px}
+.dataTable{width:100%;border-collapse:collapse;font-size:11px;margin-top:8px}
+.dataTable th,.dataTable td{text-align:left;padding:8px;border-bottom:1px solid var(--line);vertical-align:top;overflow-wrap:anywhere}
+.dataTable th{color:#d9baff;font-weight:800}
+.offset{font:11px ui-monospace,SFMono-Regular,monospace;color:#e7d6ff}
 .toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);padding:12px 16px;background:#34224d;border:1px solid #ffffff30;border-radius:12px;box-shadow:0 10px 32px #0008;font-size:12px;z-index:20;display:none;max-width:90vw}
 @media(max-width:620px){.shell{padding:14px 12px 95px}.hero{padding:19px}.grid{grid-template-columns:1fr}.viewhead{align-items:flex-start;flex-direction:column}.stats{gap:7px}.stat{padding:12px}.stat strong{font-size:21px}.tabs{margin:0 -2px}.top{margin-bottom:13px}}
 </style>
@@ -149,6 +155,26 @@ footer{margin:25px 0 0;text-align:center;color:#9285a6;font-size:11px;line-heigh
   <div class="stack" id="ipaList"><div class="empty"><b>No IPA packages yet</b>Tap “Import IPA from Files” and choose an .ipa file.</div></div>
   <div class="card" id="archivePanel" hidden style="margin-top:14px">
     <div class="row"><div class="grow"><h3 id="archiveTitle">IPA contents</h3><p class="sub" id="archiveSubtitle"></p></div><button class="quiet smallbtn" id="closeArchive">Close</button></div>
+    <div class="actions">
+      <button class="quiet smallbtn" id="editInfo">Edit main Info.plist</button>
+      <button class="secondary smallbtn" id="scanDylibs">Find dylibs & offsets</button>
+      <button class="primary smallbtn" id="exportModified" hidden>Export modified IPA</button>
+      <span id="modifiedBadge"></span>
+    </div>
+    <div class="card" id="plistEditor" hidden style="margin-top:12px">
+      <div class="row"><div class="grow"><h3>Edit Info.plist</h3><p class="sub" id="plistPath"></p></div><button class="quiet smallbtn" id="closePlist">Close</button></div>
+      <p class="hint" style="font-size:11px;line-height:1.5;margin:10px 0">Edit the complete property-list dictionary as JSON. Nested dictionaries, arrays, strings, booleans and numbers are preserved. Save changes to the in-memory IPA copy, then export it.</p>
+      <textarea id="plistJSON" class="preview" spellcheck="false" aria-label="Info plist JSON editor" style="display:block;width:100%;min-height:340px;resize:vertical;color:#f7f1ff"></textarea>
+      <div class="actions"><button class="primary smallbtn" id="savePlist">Apply Info.plist changes</button><button class="secondary smallbtn" id="downloadPlist">Download Info.plist</button></div>
+      <div id="plistMessage" style="margin-top:10px"></div>
+      <div class="callout" style="margin-top:10px">Changing Info.plist invalidates the IPA's existing code signature. The exported IPA is a modified package, not a signed or install-ready app. Re-signing must be completed through an authorized Apple workflow.</div>
+    </div>
+    <div class="card" id="dylibPanel" hidden style="margin-top:12px">
+      <div class="row"><div class="grow"><h3>Dylib Inspector</h3><p class="sub">Static Mach-O file layout · file offsets only</p></div><button class="quiet smallbtn" id="closeDylibs">Close</button></div>
+      <div id="dylibList" style="margin-top:10px"></div>
+      <div id="dylibDetail" style="margin-top:12px"></div>
+      <div class="callout" style="margin-top:12px">Offsets shown here are locations inside the stored binary file, not live process addresses. This inspector is read-only and does not patch, inject or modify executable code.</div>
+    </div>
     <input class="search" id="archiveSearch" type="search" placeholder="Search archive file paths…" style="margin-top:12px">
     <div class="breadcrumb" id="breadcrumbs"></div>
     <div id="archiveList"></div>
@@ -252,10 +278,60 @@ function parseBinaryPlist(buffer){
  }
  return obj(top);
 }
-function parsePlist(buffer){
+function bytesToBase64(bytes){let binary="";for(let i=0;i<bytes.length;i+=0x8000)binary+=String.fromCharCode.apply(null,bytes.subarray(i,Math.min(i+0x8000,bytes.length)));return btoa(binary);}
+function decodeBase64(text){const raw=atob(text.replace(/\s/g,""));const out=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)out[i]=raw.charCodeAt(i);return out;}
+function normalizePlistValue(v){
+ if(v instanceof Uint8Array)return {$plistData:bytesToBase64(v)};
+ if(Array.isArray(v))return v.map(normalizePlistValue);
+ if(v&&typeof v==="object"){const out={};Object.keys(v).forEach(k=>out[k]=normalizePlistValue(v[k]));return out;}
+ return v;
+}
+function parseXMLNode(node){
+ const tag=node.tagName;
+ if(tag==="dict"){const out={},children=Array.from(node.children);for(let i=0;i<children.length;i++){if(children[i].tagName!=="key"||!children[i+1])throw new Error("Malformed plist dictionary.");const key=children[i++].textContent;out[key]=parseXMLNode(children[i]);}return out;}
+ if(tag==="array")return Array.from(node.children).map(parseXMLNode);
+ if(tag==="string"||tag==="key"||tag==="date")return node.textContent||"";
+ if(tag==="integer"){const n=Number(node.textContent);return Number.isSafeInteger(n)?n:(node.textContent||"0");}
+ if(tag==="real")return Number(node.textContent);
+ if(tag==="true")return true;
+ if(tag==="false")return false;
+ if(tag==="data")return {$plistData:bytesToBase64(decodeBase64(node.textContent||""))};
+ throw new Error("Unsupported plist value type: "+tag);
+}
+function parsePlistFull(buffer){
  const first=new Uint8Array(buffer,0,Math.min(buffer.byteLength,8));
- if(String.fromCharCode.apply(null,first)==="bplist00")return parseBinaryPlist(buffer);
- return parseXMLPlist(new TextDecoder().decode(buffer));
+ if(String.fromCharCode.apply(null,first)==="bplist00")return normalizePlistValue(parseBinaryPlist(buffer));
+ const doc=new DOMParser().parseFromString(new TextDecoder().decode(buffer),"application/xml");
+ if(doc.querySelector("parsererror"))throw new Error("Invalid XML property list.");
+ const root=doc.querySelector("plist");
+ if(!root||!root.firstElementChild)throw new Error("Property-list root not found.");
+ return parseXMLNode(root.firstElementChild);
+}
+function parsePlist(buffer){
+ try{return parsePlistFull(buffer);}catch(e){return parseXMLPlist(new TextDecoder().decode(buffer));}
+}
+function xmlEscape(value){return String(value).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&apos;");}
+function plistXMLNode(value){
+ if(value===true)return "<true/>";
+ if(value===false)return "<false/>";
+ if(typeof value==="number"){
+  if(!Number.isFinite(value))throw new Error("Plist numbers must be finite.");
+  return Number.isInteger(value)?"<integer>"+String(value)+"</integer>":"<real>"+String(value)+"</real>";
+ }
+ if(typeof value==="string")return "<string>"+xmlEscape(value)+"</string>";
+ if(value===null||value===undefined)throw new Error("Null values are not supported in property lists.");
+ if(Array.isArray(value))return "<array>"+value.map(plistXMLNode).join("")+"</array>";
+ if(typeof value==="object"&&typeof value.$plistData==="string")return "<data>"+value.$plistData+"</data>";
+ if(typeof value==="object"){
+  let body="<dict>";
+  Object.keys(value).forEach(key=>{body+="<key>"+xmlEscape(key)+"</key>"+plistXMLNode(value[key]);});
+  return body+"</dict>";
+ }
+ throw new Error("Unsupported property-list value.");
+}
+function plistToXML(value){
+ if(!value||Array.isArray(value)||typeof value!=="object"||value.$plistData)throw new Error("The Info.plist root must be a dictionary.");
+ return '<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0">\n'+plistXMLNode(value)+"\n</plist>\n";
 }
 async function importIPAs(files){
  if(!window.JSZip){toast("Archive reader could not load. Check your internet connection and reload.");return;}
@@ -267,7 +343,7 @@ async function importIPAs(files){
    if(!names.some(n=>n.startsWith("Payload/")&&n.endsWith(".app/Info.plist")))throw new Error("No Payload/*.app/Info.plist found.");
    const infoPath=names.filter(n=>/^Payload\/[^/]+\.app\/Info\.plist$/.test(n)).sort((a,b)=>a.length-b.length)[0];
    let meta={};try{const data=await zip.file(infoPath).async("arraybuffer");meta=parsePlist(data)||{};}catch(e){}
-   const record={id:"ipa-"+Date.now()+"-"+Math.random().toString(36).slice(2),file:file,zip:zip,names:names,
+   const record={id:"ipa-"+Date.now()+"-"+Math.random().toString(36).slice(2),file:file,zip:zip,names:names,modified:false,
     app:meta.CFBundleDisplayName||meta.CFBundleName||file.name.replace(/\.ipa$/i,""),
     bundle:meta.CFBundleIdentifier||"Metadata unavailable",version:meta.CFBundleShortVersionString||"—",build:meta.CFBundleVersion||"—",size:file.size};
    state.ipas.unshift(record);
@@ -279,16 +355,154 @@ async function importIPAs(files){
 function renderIPAs(){
  const q=$("ipaSearch").value.trim().toLowerCase();
  const items=state.ipas.filter(x=>(x.app+" "+x.bundle+" "+x.version+" "+x.file.name).toLowerCase().includes(q));
- $("ipaList").innerHTML=items.length?items.map(x=>'<div class="card"><div class="row"><div class="iconbox">▣</div><div class="grow"><div class="rowtitle">'+escapeHTML(x.app)+'</div><div class="rowdetail">'+escapeHTML(x.bundle)+'</div><div class="rowdetail">v'+escapeHTML(x.version)+' · build '+escapeHTML(x.build)+' · '+sizeText(x.size)+'</div></div><span class="badge good">Imported</span></div><div class="actions"><button class="primary smallbtn" data-open="'+x.id+'">Browse IPA</button><button class="secondary smallbtn" data-share="'+x.id+'">Share IPA</button><button class="danger smallbtn" data-removeipa="'+x.id+'">Remove</button></div></div>').join(''):'<div class="empty"><b>No matching IPA packages</b>Choose an IPA file from Files to add it to this session.</div>';
+ $("ipaList").innerHTML=items.length?items.map(x=>'<div class="card"><div class="row"><div class="iconbox">▣</div><div class="grow"><div class="rowtitle">'+escapeHTML(x.app)+'</div><div class="rowdetail">'+escapeHTML(x.bundle)+'</div><div class="rowdetail">v'+escapeHTML(x.version)+' · build '+escapeHTML(x.build)+' · '+sizeText(x.size)+'</div></div><span class="badge '+(x.modified?'warn':'good')+'">'+(x.modified?'Modified · signature invalid':'Imported')+'</span></div><div class="actions"><button class="primary smallbtn" data-open="'+x.id+'">Browse IPA</button><button class="secondary smallbtn" data-share="'+x.id+'">Share IPA</button><button class="danger smallbtn" data-removeipa="'+x.id+'">Remove</button></div></div>').join(''):'<div class="empty"><b>No matching IPA packages</b>Choose an IPA file from Files to add it to this session.</div>';
  $("ipaList").querySelectorAll("[data-open]").forEach(b=>b.addEventListener("click",()=>openArchive(b.dataset.open)));
  $("ipaList").querySelectorAll("[data-share]").forEach(b=>b.addEventListener("click",()=>downloadIPA(b.dataset.share)));
  $("ipaList").querySelectorAll("[data-removeipa]").forEach(b=>b.addEventListener("click",()=>{state.ipas=state.ipas.filter(x=>x.id!==b.dataset.removeipa);if(state.archiveId===b.dataset.removeipa)closeArchive();updateCounts();renderIPAs();refreshSigning();}));
 }
 function downloadBlob(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);}
-function downloadIPA(id){const x=byId(id);if(x)downloadBlob(x.file,x.file.name);}
+function downloadIPA(id){const x=byId(id);if(!x)return;if(x.modified){exportModifiedIPA(x);return;}downloadBlob(x.file,x.file.name);}
 function openArchive(id){const x=byId(id);if(!x)return;state.archiveId=id;state.archiveZip=x.zip;state.archiveNames=x.names;state.archivePath="";$("archivePanel").hidden=false;$("archiveTitle").textContent=x.app;$("archiveSubtitle").textContent=x.file.name+" · "+x.names.length+" files";$("archiveSearch").value="";$("filePreview").hidden=true;renderArchive();$("archivePanel").scrollIntoView({behavior:"smooth",block:"start"});}
-function closeArchive(){state.archiveId=null;state.archiveZip=null;$("archivePanel").hidden=true;}
+function closeArchive(){state.archiveId=null;state.archiveZip=null;$("archivePanel").hidden=true;$("plistEditor").hidden=true;$("dylibPanel").hidden=true;}
 $("closeArchive").addEventListener("click",closeArchive);
+$("closePlist").addEventListener("click",()=>{$("plistEditor").hidden=true;});
+$("closeDylibs").addEventListener("click",()=>{$("dylibPanel").hidden=true;});
+function currentArchive(){return byId(state.archiveId);}
+async function editMainInfoPlist(){
+ const item=currentArchive();if(!item)return;
+ const path=item.names.filter(n=>/^Payload\/[^/]+\.app\/Info\.plist$/i.test(n)).sort((a,b)=>a.length-b.length)[0];
+ if(!path){toast("Main app Info.plist was not found.");return;}
+ try{
+  const buffer=await item.zip.file(path).async("arraybuffer");
+  const plist=parsePlistFull(buffer);
+  if(!plist||typeof plist!=="object"||Array.isArray(plist))throw new Error("Info.plist root is not a dictionary.");
+  state.editorPath=path;state.editorSnapshot=JSON.stringify(plist,null,2);
+  $("plistPath").textContent=path;$("plistJSON").value=state.editorSnapshot;
+  $("plistMessage").innerHTML='<span class="badge good">Loaded · '+sizeText(buffer.byteLength)+'</span>';
+  $("plistEditor").hidden=false;$("dylibPanel").hidden=true;
+  $("plistEditor").scrollIntoView({behavior:"smooth",block:"nearest"});
+ }catch(err){$("plistMessage").innerHTML='<span class="badge warn">'+escapeHTML(err.message)+'</span>';$("plistEditor").hidden=false;}
+}
+$("editInfo").addEventListener("click",editMainInfoPlist);
+$("savePlist").addEventListener("click",()=>{
+ const item=currentArchive();if(!item||!state.editorPath)return;
+ try{
+  const value=JSON.parse($("plistJSON").value);
+  const xml=plistToXML(value);
+  item.zip.file(state.editorPath,xml,{binary:false});
+  item.modified=true;item.names=Object.keys(item.zip.files).filter(n=>!item.zip.files[n].dir);
+  item.meta=value;item.app=value.CFBundleDisplayName||value.CFBundleName||item.app;
+  item.bundle=value.CFBundleIdentifier||item.bundle;item.version=value.CFBundleShortVersionString||item.version;item.build=value.CFBundleVersion||item.build;
+  state.editorSnapshot=$("plistJSON").value;
+  $("plistMessage").innerHTML='<span class="badge good">Changes applied to in-memory IPA copy</span>';
+  $("exportModified").hidden=false;
+  $("modifiedBadge").innerHTML='<span class="badge warn">Modified · original signature invalid</span>';
+  $("archiveTitle").textContent=item.app;
+  $("archiveSubtitle").textContent=item.file.name+" · "+item.names.length+" files · modified copy";
+  renderIPAs();refreshSigning();
+  toast("Info.plist updated. Export the modified IPA copy.");
+ }catch(err){$("plistMessage").innerHTML='<span class="badge warn">'+escapeHTML(err.message)+'</span>';}
+});
+$("downloadPlist").addEventListener("click",()=>{
+ if(!state.editorPath)return;
+ try{const value=JSON.parse($("plistJSON").value);downloadBlob(new Blob([plistToXML(value)],{type:"application/xml"}),"Info.plist");}
+ catch(err){toast("Fix the JSON before downloading: "+err.message);}
+});
+async function exportModifiedIPA(item){
+ if(!item||!item.modified){toast("No modified IPA copy to export.");return;}
+ try{
+  const blob=await item.zip.generateAsync({type:"blob",mimeType:"application/octet-stream",compression:"DEFLATE",compressionOptions:{level:6}});
+  downloadBlob(blob,item.file.name.replace(/\.ipa$/i,"")+"-Modified.ipa");
+  toast("Modified IPA exported. Its original signature is invalid.");
+ }catch(err){toast("IPA export failed: "+err.message);}
+}
+$("exportModified").addEventListener("click",()=>exportModifiedIPA(currentArchive()));
+function formatHex(n){if(typeof n==="bigint")return "0x"+n.toString(16).toUpperCase();return "0x"+Number(n).toString(16).toUpperCase();}
+function readMachName(bytes,start,length){let end=start;while(end<start+length&&bytes[end]!==0)end++;return new TextDecoder().decode(bytes.subarray(start,end));}
+function cpuName(cpu){const n=cpu>>>0;return ({0x0100000c:"arm64",0x01000007:"x86_64",12:"arm",7:"x86",18:"PowerPC"})[n]||"CPU "+formatHex(n);}
+function inspectMachSlice(buffer,fileBase){
+ const bytes=new Uint8Array(buffer),dv=new DataView(buffer);if(bytes.length<28)throw new Error("File is too small for a Mach-O header.");
+ const le=dv.getUint32(0,true),be=dv.getUint32(0,false);let little=true,is64=false;
+ if(le===0xfeedfacf){is64=true;little=true;}else if(le===0xfeedface){little=true;is64=false;}else if(be===0xfeedfacf){little=false;is64=true;}else if(be===0xfeedface){little=false;is64=false;}else throw new Error("This slice is not a supported 32-bit or 64-bit Mach-O image.");
+ const u32=o=>dv.getUint32(o,little),i32=o=>dv.getInt32(o,little),u64=o=>dv.getBigUint64(o,little);
+ const cpu=i32(4),filetype=u32(12),ncmds=Math.min(u32(16),5000),sizeofcmds=u32(20);
+ if(28+(is64?4:0)+sizeofcmds>bytes.length)throw new Error("Mach-O load-command area is outside this file.");
+ const result={arch:cpuName(cpu),bits:is64?64:32,filetype:filetype,ncmds:ncmds,uuid:"—",segments:[]};
+ let p=is64?32:28;
+ for(let i=0;i<ncmds;i++){
+  if(p+8>bytes.length)break;
+  const cmd=u32(p),cmdsize=u32(p+4);if(cmdsize<8||p+cmdsize>bytes.length)break;
+  if(cmd===0x1b&&cmdsize>=24){
+   const hex=Array.from(bytes.subarray(p+8,p+24)).map(v=>v.toString(16).padStart(2,"0")).join("").toUpperCase();
+   result.uuid=hex.slice(0,8)+"-"+hex.slice(8,12)+"-"+hex.slice(12,16)+"-"+hex.slice(16,20)+"-"+hex.slice(20);
+  }
+  if(is64&&cmd===0x19&&cmdsize>=72){
+   const seg={name:readMachName(bytes,p+8,16),fileoff:u64(p+40),filesize:u64(p+48),sections:[]};
+   const count=Math.min(u32(p+64),1000);let sp=p+72;
+   for(let j=0;j<count&&sp+80<=p+cmdsize;j++,sp+=80){
+    const secName=readMachName(bytes,sp,16),segName=readMachName(bytes,sp+16,16),size=u64(sp+40),offset=u32(sp+48),align=u32(sp+52);
+    seg.sections.push({name:segName+","+secName,size:size,offset:offset,align:align});
+   }
+   result.segments.push(seg);
+  }else if(!is64&&cmd===0x1&&cmdsize>=56){
+   const seg={name:readMachName(bytes,p+8,16),fileoff:u32(p+32),filesize:u32(p+36),sections:[]};
+   const count=Math.min(u32(p+48),1000);let sp=p+56;
+   for(let j=0;j<count&&sp+68<=p+cmdsize;j++,sp+=68){
+    const secName=readMachName(bytes,sp,16),segName=readMachName(bytes,sp+16,16),size=u32(sp+36),offset=u32(sp+40),align=u32(sp+44);
+    seg.sections.push({name:segName+","+secName,size:size,offset:offset,align:align});
+   }
+   result.segments.push(seg);
+  }
+  p+=cmdsize;
+ }
+ result.fileBase=fileBase||0;return result;
+}
+function machoArchitectures(buffer){
+ const dv=new DataView(buffer),magic=dv.getUint32(0,false),out=[];
+ if(magic===0xcafebabe||magic===0xcafebabf){
+  const is64=magic===0xcafebabf,count=Math.min(dv.getUint32(4,false),32),stride=is64?32:20;
+  for(let i=0;i<count;i++){
+   const p=8+i*stride;if(p+stride>buffer.byteLength)break;
+   const offset=is64?dv.getBigUint64(p+8,false):BigInt(dv.getUint32(p+8,false));
+   const size=is64?dv.getBigUint64(p+16,false):BigInt(dv.getUint32(p+12,false));
+   if(offset>BigInt(Number.MAX_SAFE_INTEGER)||size>BigInt(Number.MAX_SAFE_INTEGER))continue;
+   const start=Number(offset),length=Number(size);if(start+length>buffer.byteLength)continue;
+   out.push(inspectMachSlice(buffer.slice(start,start+length),start));
+  }
+ }else out.push(inspectMachSlice(buffer,0));
+ return out;
+}
+async function inspectDylib(path){
+ const item=currentArchive();if(!item)return;const file=item.zip.file(path);if(!file)return;
+ $("dylibDetail").innerHTML='<span class="badge">Reading '+escapeHTML(path)+'</span>';
+ try{
+  const buffer=await file.async("arraybuffer");if(buffer.byteLength>134217728)throw new Error("This binary is over the 128 MB browser inspection limit.");
+  const slices=machoArchitectures(buffer);
+  let html='<div class="sectionlabel">FILE: '+escapeHTML(path)+'</div><div class="badge good">'+sizeText(buffer.byteLength)+' · Mach-O</div>';
+  slices.forEach(m=>{
+   html+='<div class="card" style="margin-top:10px"><div class="row"><h3 style="margin:0">'+escapeHTML(m.arch)+'</h3><span class="badge">'+m.bits+'-bit</span></div>';
+   html+='<p class="rowdetail">UUID: <span class="offset">'+escapeHTML(m.uuid)+'</span> · Load commands: '+m.ncmds+' · File type: '+m.filetype+'</p>';
+   html+='<table class="dataTable"><thead><tr><th>Segment / section</th><th>File offset</th><th>File size</th></tr></thead><tbody>';
+   m.segments.forEach(seg=>{
+    html+='<tr><td>'+escapeHTML(seg.name)+'</td><td class="offset">'+formatHex(seg.fileoff)+'</td><td class="offset">'+formatHex(seg.filesize)+'</td></tr>';
+    seg.sections.forEach(sec=>{html+='<tr><td>↳ '+escapeHTML(sec.name)+'</td><td class="offset">'+formatHex(sec.offset)+'</td><td class="offset">'+formatHex(sec.size)+'</td></tr>';});
+   });
+   html+='</tbody></table></div>';
+  });
+  $("dylibDetail").innerHTML=html;
+ }catch(err){$("dylibDetail").innerHTML='<span class="badge warn">'+escapeHTML(err.message)+'</span>';}
+}
+async function scanDylibs(){
+ const item=currentArchive();if(!item)return;
+ const paths=item.names.filter(n=>/\.dylib$/i.test(n));
+ const frameworkBins=item.names.filter(n=>/\.framework\/[^/]+$/i.test(n)&&n.split("/").pop()===n.split("/").slice(-2,-1)[0].replace(/\.framework$/i,""));
+ const all=Array.from(new Set(paths.concat(frameworkBins))).sort();
+ $("dylibPanel").hidden=false;$("plistEditor").hidden=true;$("dylibDetail").innerHTML="";
+ $("dylibList").innerHTML=all.length?all.map((p,i)=>'<div class="archiveitem"><div class="grow"><div class="rowtitle">'+escapeHTML(p.split("/").pop())+'</div><div class="rowdetail">'+escapeHTML(p)+'</div></div><button data-inspectdylib="'+i+'">Inspect offsets</button></div>').join(""):'<div class="empty"><b>No dylibs found</b>This IPA does not contain a .dylib file or a recognized framework binary.</div>';
+ $("dylibList").querySelectorAll("[data-inspectdylib]").forEach(b=>b.addEventListener("click",()=>inspectDylib(all[Number(b.dataset.inspectdylib)])));
+ $("dylibPanel").scrollIntoView({behavior:"smooth",block:"nearest"});
+}
+$("scanDylibs").addEventListener("click",scanDylibs);
 function renderArchive(){
  const q=$("archiveSearch").value.trim().toLowerCase(),prefix=state.archivePath?state.archivePath+"/":"";
  $("breadcrumbs").innerHTML='<button data-path="">Payload root</button>'+state.archivePath.split("/").filter(Boolean).map((part,i,all)=>'<span>›</span><button data-path="'+escapeHTML(all.slice(0,i+1).join("/"))+'">'+escapeHTML(part)+'</button>').join("");
