@@ -651,8 +651,8 @@ function updateBulkOffsetCount(){
 function renderBulkOffsetEntries(){
  const panel=$("bulkOffsetsPanel"),list=$("bulkOffsetList");
  if(!panel||!list)return;
- panel.hidden=bulkOffsetEntries.length===0;
- if(!bulkOffsetEntries.length){list.innerHTML='<div class="empty">No segment or section file offsets were found.</div>';updateBulkOffsetCount();return;}
+ panel.hidden=false;
+ if(!bulkOffsetEntries.length){list.innerHTML='<div class="empty">No segment or section file offsets were found in this binary.</div>';updateBulkOffsetCount();return;}
  list.innerHTML=bulkOffsetEntries.map((entry,index)=>
   '<div class="bulk-offset-row'+(bulkOffsetSelected.has(index)?" selected":"")+'" data-bulk-row="'+index+'">'+
    '<input type="checkbox" aria-label="Select '+escapeHTML(entry.name)+'" data-bulk-select="'+index+'" '+(bulkOffsetSelected.has(index)?"checked":"")+'>'+
@@ -745,9 +745,13 @@ async function inspectDylib(path){
    html+='</tbody></table></div>';
   });
   $("dylibDetail").innerHTML=html;
+  const bulkPanel=$("bulkOffsetsPanel");
+  $("dylibDetail").insertAdjacentElement("afterend",bulkPanel);
   renderBulkOffsetEntries();
+  bulkPanel.scrollIntoView({behavior:"smooth",block:"nearest"});
  }catch(err){
-  bulkOffsetEntries=[];bulkOffsetSelected.clear();renderBulkOffsetEntries();
+  bulkOffsetEntries=[];bulkOffsetSelected.clear();
+  $("bulkOffsetsPanel").hidden=true;
   $("dylibDetail").innerHTML='<span class="badge warn">'+escapeHTML(err.message)+'</span>';
  }
 }
