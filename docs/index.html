@@ -818,7 +818,7 @@ function renderManualOffsetReferences(){
  if(!visible.length){target.innerHTML='<div class="empty">No reference records match this search.</div>';return;}
  target.innerHTML=visible.map(entry=>
   '<div class="manual-offset-row" data-manual-record="'+escapeHTML(entry.id)+'">'+
-   '<div class="manual-offset-origin manual-offset-wide"><span class="badge">'+(entry.origin==="inspector"?"Detected by Dylib Inspector":"Manual reference")+'</span>'+(entry.kind?" <span class="rowdetail">'+escapeHTML(entry.kind)+'</span>':"")+'</div>'+
+   '<div class="manual-offset-origin manual-offset-wide"><span class="badge">'+(entry.origin==="inspector"?"Detected by Dylib Inspector":"Manual reference")+'</span>'+(entry.kind?'<span class="rowdetail">'+escapeHTML(entry.kind)+'</span>':"")+'</div>'+
    '<label>Label<input type="text" maxlength="120" data-manual-field="label" value="'+escapeHTML(entry.label)+'" placeholder="e.g. My reference"></label>'+
    '<label>Library / component<input type="text" maxlength="180" data-manual-field="library" value="'+escapeHTML(entry.library)+'" placeholder="Library or component name"></label>'+
    '<label>Architecture<input type="text" maxlength="40" data-manual-field="architecture" value="'+escapeHTML(entry.architecture)+'" placeholder="e.g. arm64"></label>'+
