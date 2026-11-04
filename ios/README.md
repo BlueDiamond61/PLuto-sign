@@ -2,19 +2,22 @@
 
 Native SwiftUI project for the Pluto Sign workspace.
 
-## App areas
-- **Home:** refreshed dashboard, library counts, quick actions, profile page and recent activity.
-- **IPAs:** multi-select IPA import, metadata inspection, archive browsing/search, version audit and metadata synchronization.
-- **Files:** general local document imports with share and delete actions. IPA and provisioning profile files route to their dedicated sections.
-- **Assets:** import your own P12/PFX files after password validation; store the P12 data in iOS Keychain. Import provisioning profiles into app-private storage.
-- **Signing:** select an IPA, certificate identity and profile; check that inputs are present; export a signing request.
+## App tabs
 
-## Build
-Open `ios/PlutoSign.xcodeproj` in Xcode on macOS. GitHub Actions builds an iOS Simulator target on a hosted macOS runner. The simulator artifact is not installable on a physical iPhone.
+- **Home:** dashboard with library counts and quick actions.
+- **View IPAs:** import one or more IPA files, inspect metadata, browse package contents, search files and run metadata-only version synchronization.
+- **Files:** import and organize documents locally, share or remove files. IPA and provisioning-profile imports are routed to their respective sections.
+- **Cert Import:** bring your own P12/PFX certificate and provisioning profile. P12/PFX password validation is performed locally; the password is not saved and the P12/PFX file is stored in iOS Keychain.
+- **Sign IPA:** import/select an IPA, select the certificate and provisioning profile, check that inputs are present, and export a signing handoff request. The screen can also import the required files without leaving the tab.
 
 ## Signing limitations
-The iOS app does not re-sign or install arbitrary IPA packages. A local input check is not proof that a P12 identity and provisioning profile are compatible. Actual signing must happen in an authorized Apple workflow that validates bundle ID, profile expiry, entitlements, device/distribution method, certificate pairing and final signature. Metadata edits invalidate the original IPA signature.
 
-The `.mobileconfig` file installs only a removable Web Clip shortcut to the Pluto Sign homepage. It does not install the native app, certificates, VPN or management settings.
+The iOS app prepares a signing handoff; it does not execute Apple's macOS `codesign` tool and does not claim to have signed the IPA. A selection check only confirms that inputs are present, not that they are compatible. Actual signing must use an authorized Apple workflow on macOS and validate the certificate, provisioning profile, bundle ID, entitlements, expiry and distribution method.
 
-Do not upload P12/PFX files, passwords, private keys or provisioning profiles to this public repository.
+The `.mobileconfig` installs only a removable Web Clip shortcut to the public homepage. It includes a custom PNG icon so iOS does not fall back to the plain white/gray square.
+
+## Build
+
+Open `ios/PlutoSign.xcodeproj` in Xcode on macOS. The project includes an AppIcon asset catalog. GitHub Actions builds an iOS Simulator target on a hosted macOS runner. The simulator artifact is not installable on a physical iPhone.
+
+Do not commit P12/PFX files, passwords, private keys or provisioning profiles to this public repository.
