@@ -434,91 +434,365 @@ enum Style {
 }
 struct Panel<Content: View>: View {
     @ViewBuilder var content: Content
-    var body: some View { content.padding(15).background(Style.card, in: RoundedRectangle(cornerRadius: 19)).overlay(RoundedRectangle(cornerRadius: 19).stroke(.white.opacity(0.06), lineWidth: 1)) }
+    var body: some View {
+        content
+            .padding(16)
+            .background(
+                LinearGradient(colors: [Style.card, Color(red: 0.065, green: 0.045, blue: 0.11)],
+                               startPoint: .topLeading, endPoint: .bottomTrailing),
+                in: RoundedRectangle(cornerRadius: 21, style: .continuous)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 21, style: .continuous)
+                    .stroke(.white.opacity(0.075), lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.16), radius: 15, x: 0, y: 8)
+    }
 }
 struct MainButton: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label.font(.headline).foregroundStyle(.white).padding(13)
-            .background(LinearGradient(colors: [Style.violet, Style.pink], startPoint: .leading, endPoint: .trailing), in: RoundedRectangle(cornerRadius: 14))
-            .opacity(configuration.isPressed ? 0.8 : 1)
+        configuration.label
+            .font(.headline.weight(.semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 15)
+            .padding(.vertical, 14)
+            .background(
+                LinearGradient(colors: [Style.violet, Style.pink],
+                               startPoint: .leading, endPoint: .trailing),
+                in: RoundedRectangle(cornerRadius: 15, style: .continuous)
+            )
+            .shadow(color: Style.violet.opacity(configuration.isPressed ? 0.08 : 0.24),
+                    radius: 12, x: 0, y: 5)
+            .scaleEffect(configuration.isPressed ? 0.985 : 1)
     }
 }
 struct PlutoTabs: View {
     @EnvironmentObject var store: PlutoStore
+    @State private var selectedTab = 0
+
     var body: some View {
-        TabView {
-            Dashboard().tabItem { Label("Home", systemImage: "square.grid.2x2.fill") }
-            Library().tabItem { Label("IPAs", systemImage: "shippingbox.fill") }
-            Assets().tabItem { Label("Assets", systemImage: "key.fill") }
-            SignPrep().tabItem { Label("Signing", systemImage: "signature") }
-        }.tint(Style.violet)
+        TabView(selection: $selectedTab) {
+            Dashboard(selectedTab: $selectedTab)
+                .tabItem { Label("Home", systemImage: "square.grid.2x2.fill") }
+                .tag(0)
+
+            Library()
+                .tabItem { Label("IPAs", systemImage: "shippingbox.fill") }
+                .tag(1)
+
+            ImportedFiles()
+                .tabItem { Label("Files", systemImage: "folder.fill") }
+                .tag(2)
+
+            Assets()
+                .tabItem { Label("Assets", systemImage: "key.fill") }
+                .tag(3)
+
+            SignPrep()
+                .tabItem { Label("Sign", systemImage: "signature") }
+                .tag(4)
+        }
+        .tint(Style.violet)
+        .toolbarBackground(Style.card, for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
         .onAppear { store.reload() }
         .alert("Pluto Sign", isPresented: Binding(get: { store.error != nil }, set: { if !$0 { store.error = nil } })) {
             Button("OK") { store.error = nil }
-        } message: { Text(store.error ?? "") }
+        } message: {
+            Text(store.error ?? "")
+        }
     }
 }
+
 struct Dashboard: View {
     @EnvironmentObject var store: PlutoStore
+    @Binding var selectedTab: Int
     @State private var importing = false
     @State private var importingFiles = false
+
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    HStack {
-                        VStack(alignment: .leading, spacing: 0) {
-                            Text("PLUTO").font(.system(size: 31, weight: .black, design: .rounded))
-                            Text("SIGN").font(.system(size: 31, weight: .black, design: .rounded)).foregroundStyle(Style.violet)
-                        }
-                        Spacer()
-                        Image(systemName: "sparkles.rectangle.stack.fill").font(.system(size: 38)).foregroundStyle(Style.pink)
-                    }
-                    Text("Your iOS package workspace").foregroundStyle(Style.muted)
-                    HStack {
-                        stat("IPA PACKAGES", "\(store.ipas.count)", "shippingbox")
-                        stat("SIGNING ASSETS", "\(store.assets.count)", "key.horizontal")
-                    }
-                    Panel {
-                        VStack(alignment: .leading, spacing: 12) {
-                            Text("QUICK ACTIONS").font(.caption.bold()).foregroundStyle(Style.pink)
-                            Button { importing = true } label: { Label("Import IPA from Files", systemImage: "plus").frame(maxWidth: .infinity) }.buttonStyle(MainButton())
-                            Button { importingFiles = true } label: { Label("Import Other Files", systemImage: "folder.badge.plus").frame(maxWidth: .infinity) }.buttonStyle(.bordered).tint(Style.violet)
-                        }
-                    }
-                    Panel {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("PROFILE DOWNLOAD").font(.caption.bold()).foregroundStyle(Style.pink)
-                            Text("Add a removable Pluto Sign shortcut to your iPhone Home Screen.").font(.subheadline).foregroundStyle(Style.muted)
-                            Link(destination: URL(string: "https://bluediamond61.github.io/PLuto-sign/")!) {
-                                Label("Download Home Screen Profile", systemImage: "person.crop.square.badge.plus").frame(maxWidth: .infinity)
-                            }.buttonStyle(MainButton())
-                            Text("After tapping Allow in Safari, open Settings → Profile Downloaded and review the profile before installing.").font(.caption).foregroundStyle(Style.muted)
-                        }
-                    }
-                    Panel {
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("RECENT ACTIVITY").font(.caption.bold()).foregroundStyle(Style.muted)
-                            if store.activity.isEmpty { Text("Imports and exports appear here.").font(.subheadline).foregroundStyle(Style.muted) }
-                            ForEach(Array(store.activity.enumerated()), id: \.offset) { _, item in Label(item, systemImage: "checkmark.circle.fill").font(.subheadline) }
-                        }
-                    }
-                    Text("Local IPA inspection and signing asset manager. Modified packages need authorized re-signing.").font(.footnote).foregroundStyle(Style.muted)
-                }.padding(20)
-            }.background(Style.bg.ignoresSafeArea()).navigationBarHidden(true)
-            .fileImporter(isPresented: $importing, allowedContentTypes: [UTType(filenameExtension: "ipa") ?? .data], allowsMultipleSelection: true) { result in
-                switch result { case .success(let urls): store.importIPAs(urls); case .failure(let e): store.error = e.localizedDescription }
+            ScrollView(showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 19) {
+                    header
+                    hero
+                    metrics
+                    quickActions
+                    profileCard
+                    activityCard
+                    footer
+                }
+                .padding(.horizontal, 18)
+                .padding(.top, 18)
+                .padding(.bottom, 28)
             }
-            .fileImporter(isPresented: $importingFiles, allowedContentTypes: [.item], allowsMultipleSelection: true) { result in
-                switch result { case .success(let urls): store.importFiles(urls); case .failure(let e): store.error = e.localizedDescription }
+            .background(Style.bg.ignoresSafeArea())
+            .toolbar(.hidden, for: .navigationBar)
+            .fileImporter(isPresented: $importing,
+                          allowedContentTypes: [UTType(filenameExtension: "ipa") ?? .data],
+                          allowsMultipleSelection: true) { result in
+                switch result {
+                case .success(let urls): store.importIPAs(urls)
+                case .failure(let error): store.error = error.localizedDescription
+                }
+            }
+            .fileImporter(isPresented: $importingFiles, allowedContentTypes: [.item],
+                          allowsMultipleSelection: true) { result in
+                switch result {
+                case .success(let urls): store.importFiles(urls)
+                case .failure(let error): store.error = error.localizedDescription
+                }
             }
             .refreshable { store.reload() }
         }
+        .tint(Style.violet)
     }
-    func stat(_ title: String, _ value: String, _ icon: String) -> some View {
-        Panel { VStack(alignment: .leading, spacing: 8) { Image(systemName: icon).foregroundStyle(Style.pink); Text(value).font(.system(size: 28, weight: .bold)); Text(title).font(.caption2.bold()).foregroundStyle(Style.muted) }.frame(maxWidth: .infinity, alignment: .leading) }
+
+    private var header: some View {
+        HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("PLUTO SIGN")
+                    .font(.system(size: 13, weight: .black, design: .rounded))
+                    .tracking(2.6)
+                    .foregroundStyle(Style.pink)
+                Text("Workspace")
+                    .font(.system(size: 27, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+            }
+            Spacer()
+            ZStack {
+                Circle().fill(Style.violet.opacity(0.16))
+                Circle().stroke(Style.violet.opacity(0.3), lineWidth: 1)
+                Image(systemName: "sparkles.rectangle.stack.fill")
+                    .font(.system(size: 21, weight: .semibold))
+                    .foregroundStyle(Style.pink)
+            }
+            .frame(width: 49, height: 49)
+        }
+    }
+
+    private var hero: some View {
+        VStack(alignment: .leading, spacing: 13) {
+            HStack(spacing: 7) {
+                Circle().fill(Style.pink).frame(width: 7, height: 7)
+                Text("LOCAL PACKAGE WORKSPACE")
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .tracking(1.25)
+                    .foregroundStyle(.white.opacity(0.84))
+            }
+            Text("Everything for your\nIPA workflow.")
+                .font(.system(size: 29, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("Import packages, explore archive contents, manage your own signing files and prepare an authorized signing request.")
+                .font(.subheadline)
+                .foregroundStyle(.white.opacity(0.79))
+                .fixedSize(horizontal: false, vertical: true)
+            Button { importing = true } label: {
+                Label("Import an IPA", systemImage: "plus")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(MainButton())
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            LinearGradient(colors: [
+                Color(red: 0.30, green: 0.16, blue: 0.52),
+                Color(red: 0.18, green: 0.10, blue: 0.34),
+                Color(red: 0.12, green: 0.08, blue: 0.22)
+            ], startPoint: .topLeading, endPoint: .bottomTrailing),
+            in: RoundedRectangle(cornerRadius: 25, style: .continuous)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 25, style: .continuous)
+                .stroke(.white.opacity(0.12), lineWidth: 1)
+        )
+        .shadow(color: Style.violet.opacity(0.17), radius: 22, x: 0, y: 10)
+    }
+
+    private var metrics: some View {
+        HStack(spacing: 10) {
+            metricCard("IPA PACKAGES", value: store.ipas.count, icon: "shippingbox.fill")
+            metricCard("FILES", value: store.documents.count, icon: "folder.fill")
+            metricCard("SIGNING ASSETS", value: store.assets.count, icon: "key.fill")
+        }
+    }
+
+    private var quickActions: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            sectionHeading("QUICK ACCESS", subtitle: "Jump into a workspace")
+            HStack(spacing: 11) {
+                actionTile("Browse IPAs", detail: "Package library", icon: "shippingbox.fill") {
+                    selectedTab = 1
+                }
+                actionTile("My Files", detail: "Documents & exports", icon: "folder.fill") {
+                    selectedTab = 2
+                }
+            }
+            HStack(spacing: 11) {
+                actionTile("Signing Assets", detail: "P12 & profiles", icon: "key.fill") {
+                    selectedTab = 3
+                }
+                actionTile("Signing Prep", detail: "Select signing inputs", icon: "signature") {
+                    selectedTab = 4
+                }
+            }
+            Button { importingFiles = true } label: {
+                Label("Import other files from Files", systemImage: "folder.badge.plus")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .tint(Style.violet)
+        }
+    }
+
+    private var profileCard: some View {
+        Panel {
+            HStack(alignment: .top, spacing: 13) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 13).fill(Style.violet.opacity(0.17))
+                    Image(systemName: "person.crop.square.badge.plus")
+                        .font(.system(size: 20))
+                        .foregroundStyle(Style.pink)
+                }
+                .frame(width: 43, height: 43)
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("HOME SCREEN PROFILE")
+                        .font(.caption.bold())
+                        .tracking(0.8)
+                        .foregroundStyle(Style.pink)
+                    Text("Add the Pluto Sign homepage to your Home Screen.")
+                        .font(.subheadline)
+                        .foregroundStyle(.white)
+                    Link(destination: URL(string: "https://bluediamond61.github.io/PLuto-sign/")!) {
+                        HStack(spacing: 5) {
+                            Text("Open profile page")
+                            Image(systemName: "arrow.up.right")
+                        }
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(Style.violet)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+        }
+    }
+
+    private var activityCard: some View {
+        Panel {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("RECENT ACTIVITY")
+                        .font(.caption.bold())
+                        .tracking(0.8)
+                        .foregroundStyle(Style.muted)
+                    Spacer()
+                    Text("\(store.activity.count) events")
+                        .font(.caption2)
+                        .foregroundStyle(Style.muted)
+                }
+                if store.activity.isEmpty {
+                    HStack(spacing: 10) {
+                        Image(systemName: "clock")
+                            .foregroundStyle(Style.muted)
+                        Text("Your imports and exports will appear here.")
+                            .font(.subheadline)
+                            .foregroundStyle(Style.muted)
+                    }
+                } else {
+                    ForEach(Array(store.activity.prefix(5).enumerated()), id: \.offset) { _, item in
+                        HStack(alignment: .top, spacing: 9) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.caption)
+                                .foregroundStyle(Style.violet)
+                                .padding(.top, 2)
+                            Text(item)
+                                .font(.subheadline)
+                                .foregroundStyle(.white.opacity(0.9))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var footer: some View {
+        Text("Pluto Sign manages local packages and signing inputs. Actual app signing and device distribution require an authorized Apple workflow.")
+            .font(.caption2)
+            .foregroundStyle(Style.muted)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 8)
+    }
+
+    private func metricCard(_ title: String, value: Int, icon: String) -> some View {
+        Panel {
+            VStack(alignment: .leading, spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Style.pink)
+                Text("\(value)")
+                    .font(.system(size: 25, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .contentTransition(.numericText())
+                Text(title)
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .tracking(0.4)
+                    .foregroundStyle(Style.muted)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private func sectionHeading(_ title: String, subtitle: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title)
+                .font(.caption.bold())
+                .tracking(1)
+                .foregroundStyle(Style.pink)
+            Text(subtitle)
+                .font(.caption)
+                .foregroundStyle(Style.muted)
+        }
+    }
+
+    private func actionTile(_ title: String, detail: String, icon: String,
+                            action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 11) {
+                Image(systemName: icon)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(Style.pink)
+                    .frame(width: 37, height: 37)
+                    .background(Style.violet.opacity(0.16), in: RoundedRectangle(cornerRadius: 11))
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.white)
+                    Text(detail)
+                        .font(.caption2)
+                        .foregroundStyle(Style.muted)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+            }
+            .frame(maxWidth: .infinity, minHeight: 96, alignment: .leading)
+            .padding(13)
+            .background(Style.card, in: RoundedRectangle(cornerRadius: 19, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 19, style: .continuous)
+                    .stroke(.white.opacity(0.07), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
 }
+
 struct Library: View {
     @EnvironmentObject var store: PlutoStore
     @State private var importing = false
