@@ -157,7 +157,8 @@ textarea.preview{font:11px/1.55 ui-monospace,SFMono-Regular,monospace;background
     <div class="row"><div class="grow"><h3 id="archiveTitle">IPA contents</h3><p class="sub" id="archiveSubtitle"></p></div><button class="quiet smallbtn" id="closeArchive">Close</button></div>
     <div class="actions">
       <button class="quiet smallbtn" id="editInfo">Edit main Info.plist</button>
-      <button class="secondary smallbtn" id="scanDylibs">Find dylibs & offsets</button>
+      <button class="secondary smallbtn" id="scanDylibs">Find dylibs</button>
+      <button class="primary smallbtn" id="checkCompatibility">Check compatibility</button>
       <button class="primary smallbtn" id="exportModified" hidden>Export modified IPA</button>
       <span id="modifiedBadge"></span>
     </div>
@@ -174,6 +175,15 @@ textarea.preview{font:11px/1.55 ui-monospace,SFMono-Regular,monospace;background
       <div id="dylibList" style="margin-top:10px"></div>
       <div id="dylibDetail" style="margin-top:12px"></div>
       <div class="callout" style="margin-top:12px">Offsets shown here are locations inside the stored binary file, not live process addresses. This inspector is read-only and does not patch, inject or modify executable code.</div>
+    </div>
+    <div class="card" id="compatPanel" hidden style="margin-top:12px">
+      <div class="row"><div class="grow"><h3>IPA Compatibility Checker</h3><p class="sub">Package metadata, embedded library versions and architecture review</p></div><button class="quiet smallbtn" id="closeCompat">Close</button></div>
+      <p class="hint" style="font-size:11px;line-height:1.5;margin:10px 0">Choose a second IPA as a reference package to compare app and bundled-library versions. Use a trusted, newer copy of the same app as the reference. Without a reference, Pluto Sign can still inspect architecture coverage and package metadata, but cannot determine whether a version is current.</p>
+      <div class="field"><label for="compatReference">REFERENCE IPA (OPTIONAL)</label><select id="compatReference"><option value="">Run package checks only</option></select></div>
+      <div class="actions"><button class="primary smallbtn" id="runCompatibility">Run compatibility check</button><button class="secondary smallbtn" id="exportCompatibility" disabled>Export report JSON</button></div>
+      <div id="compatSummary" style="margin-top:12px"></div>
+      <div id="compatResults" style="margin-top:12px"></div>
+      <div class="callout" style="margin-top:12px">This is a static IPA package review only. It does not inspect live memory, calculate or update runtime offsets, patch executables, inject code or change the imported IPA.</div>
     </div>
     <input class="search" id="archiveSearch" type="search" placeholder="Search archive file paths…" style="margin-top:12px">
     <div class="breadcrumb" id="breadcrumbs"></div>
@@ -237,7 +247,7 @@ textarea.preview{font:11px/1.55 ui-monospace,SFMono-Regular,monospace;background
 <script>
 (function(){
 "use strict";
-const state={ipas:[],files:[],cert:null,profile:null,archiveId:null,archivePath:"",archiveZip:null,archiveNames:[]};
+const state={ipas:[],files:[],cert:null,profile:null,archiveId:null,archivePath:"",archiveZip:null,archiveNames:[],compatReport:null};
 const $=id=>document.getElementById(id);
 const byId=id=>state.ipas.find(x=>x.id===id);
 function escapeHTML(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
@@ -363,10 +373,11 @@ function renderIPAs(){
 function downloadBlob(blob,name){const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);}
 function downloadIPA(id){const x=byId(id);if(!x)return;if(x.modified){exportModifiedIPA(x);return;}downloadBlob(x.file,x.file.name);}
 function openArchive(id){const x=byId(id);if(!x)return;state.archiveId=id;state.archiveZip=x.zip;state.archiveNames=x.names;state.archivePath="";$("archivePanel").hidden=false;$("archiveTitle").textContent=x.app;$("archiveSubtitle").textContent=x.file.name+" · "+x.names.length+" files";$("archiveSearch").value="";$("filePreview").hidden=true;renderArchive();$("archivePanel").scrollIntoView({behavior:"smooth",block:"start"});}
-function closeArchive(){state.archiveId=null;state.archiveZip=null;$("archivePanel").hidden=true;$("plistEditor").hidden=true;$("dylibPanel").hidden=true;}
+function closeArchive(){state.archiveId=null;state.archiveZip=null;$("archivePanel").hidden=true;$("plistEditor").hidden=true;$("dylibPanel").hidden=true;$("compatPanel").hidden=true;state.compatReport=null;}
 $("closeArchive").addEventListener("click",closeArchive);
 $("closePlist").addEventListener("click",()=>{$("plistEditor").hidden=true;});
 $("closeDylibs").addEventListener("click",()=>{$("dylibPanel").hidden=true;});
+$("closeCompat").addEventListener("click",()=>{$("compatPanel").hidden=true;});
 function currentArchive(){return byId(state.archiveId);}
 async function editMainInfoPlist(){
  const item=currentArchive();if(!item)return;
@@ -420,6 +431,10 @@ $("exportModified").addEventListener("click",()=>exportModifiedIPA(currentArchiv
 function formatHex(n){if(typeof n==="bigint")return "0x"+n.toString(16).toUpperCase();return "0x"+Number(n).toString(16).toUpperCase();}
 function readMachName(bytes,start,length){let end=start;while(end<start+length&&bytes[end]!==0)end++;return new TextDecoder().decode(bytes.subarray(start,end));}
 function cpuName(cpu){const n=cpu>>>0;return ({0x0100000c:"arm64",0x01000007:"x86_64",12:"arm",7:"x86",18:"PowerPC"})[n]||"CPU "+formatHex(n);}
+function machVersion(value){
+ const n=Number(value)>>>0,major=(n>>>16)&0xffff,minor=(n>>>8)&0xff,patch=n&0xff;
+ return major+"."+minor+"."+patch;
+}
 function inspectMachSlice(buffer,fileBase){
  const bytes=new Uint8Array(buffer),dv=new DataView(buffer);if(bytes.length<28)throw new Error("File is too small for a Mach-O header.");
  const le=dv.getUint32(0,true),be=dv.getUint32(0,false);let little=true,is64=false;
@@ -427,11 +442,23 @@ function inspectMachSlice(buffer,fileBase){
  const u32=o=>dv.getUint32(o,little),i32=o=>dv.getInt32(o,little),u64=o=>dv.getBigUint64(o,little);
  const cpu=i32(4),filetype=u32(12),ncmds=Math.min(u32(16),5000),sizeofcmds=u32(20);
  if(28+(is64?4:0)+sizeofcmds>bytes.length)throw new Error("Mach-O load-command area is outside this file.");
- const result={arch:cpuName(cpu),bits:is64?64:32,filetype:filetype,ncmds:ncmds,uuid:"—",segments:[]};
+ const result={arch:cpuName(cpu),bits:is64?64:32,filetype:filetype,ncmds:ncmds,uuid:"—",segments:[],dylibId:null,currentVersion:null,compatibilityVersion:null,dependencies:[]};
  let p=is64?32:28;
  for(let i=0;i<ncmds;i++){
   if(p+8>bytes.length)break;
   const cmd=u32(p),cmdsize=u32(p+4);if(cmdsize<8||p+cmdsize>bytes.length)break;
+  if(cmd===0xd&&cmdsize>=24){
+   const nameOffset=u32(p+8);
+   if(nameOffset>=8&&nameOffset<cmdsize){
+    result.dylibId=readMachName(bytes,p+nameOffset,cmdsize-nameOffset);
+    result.currentVersion=machVersion(u32(p+16));
+    result.compatibilityVersion=machVersion(u32(p+20));
+   }
+  }
+  if([0xc,0x80000018,0x8000001f,0x20,0x80000023].includes(cmd)&&cmdsize>=24){
+   const nameOffset=u32(p+8);
+   if(nameOffset>=8&&nameOffset<cmdsize)result.dependencies.push(readMachName(bytes,p+nameOffset,cmdsize-nameOffset));
+  }
   if(cmd===0x1b&&cmdsize>=24){
    const hex=Array.from(bytes.subarray(p+8,p+24)).map(v=>v.toString(16).padStart(2,"0")).join("").toUpperCase();
    result.uuid=hex.slice(0,8)+"-"+hex.slice(8,12)+"-"+hex.slice(12,16)+"-"+hex.slice(16,20)+"-"+hex.slice(20);
@@ -494,14 +521,161 @@ async function inspectDylib(path){
 }
 async function scanDylibs(){
  const item=currentArchive();if(!item)return;
- const paths=item.names.filter(n=>/\.dylib$/i.test(n));
- const frameworkBins=item.names.filter(n=>/\.framework\/[^/]+$/i.test(n)&&n.split("/").pop()===n.split("/").slice(-2,-1)[0].replace(/\.framework$/i,""));
- const all=Array.from(new Set(paths.concat(frameworkBins))).sort();
+ const all=libraryPaths(item);
  $("dylibPanel").hidden=false;$("plistEditor").hidden=true;$("dylibDetail").innerHTML="";
  $("dylibList").innerHTML=all.length?all.map((p,i)=>'<div class="archiveitem"><div class="grow"><div class="rowtitle">'+escapeHTML(p.split("/").pop())+'</div><div class="rowdetail">'+escapeHTML(p)+'</div></div><button data-inspectdylib="'+i+'">Inspect offsets</button></div>').join(""):'<div class="empty"><b>No dylibs found</b>This IPA does not contain a .dylib file or a recognized framework binary.</div>';
  $("dylibList").querySelectorAll("[data-inspectdylib]").forEach(b=>b.addEventListener("click",()=>inspectDylib(all[Number(b.dataset.inspectdylib)])));
  $("dylibPanel").scrollIntoView({behavior:"smooth",block:"nearest"});
 }
+
+function libraryPaths(item){
+ const dylibs=item.names.filter(n=>/\.dylib$/i.test(n));
+ const frameworkBins=item.names.filter(n=>/\.framework\/[^/]+$/i.test(n)&&n.split("/").pop()===n.split("/").slice(-2,-1)[0].replace(/\.framework$/i,""));
+ return Array.from(new Set(dylibs.concat(frameworkBins))).sort();
+}
+function versionParts(value){
+ const parts=String(value||"").match(/\d+/g);
+ return parts?parts.slice(0,4).map(Number):null;
+}
+function compareVersions(a,b){
+ const aa=versionParts(a),bb=versionParts(b);if(!aa||!bb)return null;
+ for(let i=0;i<Math.max(aa.length,bb.length);i++){const x=aa[i]||0,y=bb[i]||0;if(x<y)return -1;if(x>y)return 1;}
+ return 0;
+}
+async function readBinaryMetadata(item,path){
+ const entry=item.zip.file(path);if(!entry)return null;
+ const buffer=await entry.async("arraybuffer");
+ if(buffer.byteLength>134217728)throw new Error("A bundled binary exceeds the 128 MB inspection limit.");
+ const slices=machoArchitectures(buffer);
+ const architectures=Array.from(new Set(slices.map(s=>s.arch)));
+ const ids=slices.find(s=>s.dylibId);
+ let version=ids&&ids.currentVersion?ids.currentVersion:null;
+ let versionSource=version?"Mach-O library version":"Not declared";
+ if(/\.framework\/[^/]+$/i.test(path)){
+  const marker=path.toLowerCase().lastIndexOf(".framework/");
+  const infoPath=path.slice(0,marker+11)+"Info.plist";
+  const infoEntry=item.zip.file(infoPath);
+  if(infoEntry){
+   try{
+    const info=parsePlistFull(await infoEntry.async("arraybuffer"));
+    const plistVersion=info.CFBundleShortVersionString||info.CFBundleVersion;
+    if(plistVersion){version=String(plistVersion);versionSource="Framework Info.plist";}
+   }catch(e){}
+  }
+ }
+ return {path:path,name:path.split("/").pop(),version:version,versionSource:versionSource,
+  architectures:architectures,dylibId:ids?ids.dylibId:null,
+  compatibilityVersion:ids?ids.compatibilityVersion:null,
+  dependencies:Array.from(new Set(slices.flatMap(s=>s.dependencies||[])))};
+}
+async function buildPackageInventory(item){
+ const infoPath=item.names.filter(n=>/^Payload\/[^/]+\.app\/Info\.plist$/i.test(n)).sort((a,b)=>a.length-b.length)[0];
+ if(!infoPath)throw new Error("The main app Info.plist was not found.");
+ const appInfo=parsePlistFull(await item.zip.file(infoPath).async("arraybuffer"));
+ const appRoot=infoPath.slice(0,infoPath.lastIndexOf("/"));
+ const executableName=appInfo.CFBundleExecutable||"";
+ let appArchitectures=[];
+ if(executableName){
+  const executable=item.zip.file(appRoot+"/"+executableName);
+  if(executable){
+   const data=await executable.async("arraybuffer");
+   if(data.byteLength<=134217728)appArchitectures=Array.from(new Set(machoArchitectures(data).map(s=>s.arch)));
+  }
+ }
+ const libraries=[];
+ for(const path of libraryPaths(item)){
+  try{const meta=await readBinaryMetadata(item,path);if(meta)libraries.push(meta);}
+  catch(err){libraries.push({path:path,name:path.split("/").pop(),version:null,versionSource:"Inspection unavailable",architectures:[],error:err.message,dependencies:[]});}
+ }
+ return {app:item.app,bundle:item.bundle,version:item.version,build:item.build,
+  minimumOS:appInfo.MinimumOSVersion||"Not declared",executable:executableName||"Not declared",
+  architectures:appArchitectures,libraries:libraries};
+}
+function renderCompatibilityReport(report){
+ state.compatReport=report;
+ $("exportCompatibility").disabled=false;
+ const target=report.target,reference=report.reference;
+ const issueCount=report.findings.filter(x=>x.level==="warn").length;
+ $("compatSummary").innerHTML='<div class="row" style="flex-wrap:wrap"><span class="badge '+(issueCount?"warn":"good")+'">'+(issueCount?issueCount+" item(s) to review":"No architecture warnings found")+'</span><span class="badge">App '+escapeHTML(target.version)+' · build '+escapeHTML(target.build)+'</span>'+(reference?'<span class="badge">Compared with '+escapeHTML(reference.version)+' · build '+escapeHTML(reference.build)+'</span>':'<span class="badge">No reference package selected</span>')+'</div>'+
+ '<div class="grid" style="margin-top:10px"><div class="card"><div class="sectionlabel">APP PACKAGE</div><div class="rowtitle">'+escapeHTML(target.app)+'</div><div class="rowdetail">'+escapeHTML(target.bundle)+'</div><div class="rowdetail">Minimum iOS: '+escapeHTML(target.minimumOS)+' · Executable: '+escapeHTML(target.executable)+'</div><div class="rowdetail">Architectures: '+escapeHTML(target.architectures.join(", ")||"Unavailable")+'</div></div><div class="card"><div class="sectionlabel">EMBEDDED LIBRARIES</div><div class="rowtitle">'+target.libraries.length+'</div><div class="rowdetail">Dylib and framework binaries inspected</div></div></div>';
+ let rows=report.findings.map(f=>'<tr><td>'+escapeHTML(f.item)+'</td><td><span class="badge '+(f.level==="warn"?"warn":"")+'">'+escapeHTML(f.status)+'</span></td><td>'+escapeHTML(f.detail)+'</td></tr>').join("");
+ $("compatResults").innerHTML=report.findings.length?'<table class="dataTable"><thead><tr><th>Component</th><th>Result</th><th>Details</th></tr></thead><tbody>'+rows+'</tbody></table>':'<div class="empty">No compatibility findings were produced.</div>';
+}
+async function runCompatibility(){
+ const item=currentArchive();if(!item)return;
+ $("compatSummary").innerHTML='<span class="badge">Inspecting IPA package…</span>';
+ $("compatResults").innerHTML="";
+ $("exportCompatibility").disabled=true;
+ try{
+  const target=await buildPackageInventory(item);
+  const referenceItem=byId($("compatReference").value);
+  const reference=referenceItem?await buildPackageInventory(referenceItem):null;
+  const findings=[];
+  if(!target.architectures.length)findings.push({item:"Main app executable",level:"warn",status:"Not inspected",detail:"The app executable or its Mach-O architecture information could not be read."});
+  if(target.libraries.length===0)findings.push({item:"Embedded libraries",level:"info",status:"None found",detail:"No bundled .dylib or recognized framework executable was found."});
+  target.libraries.forEach(lib=>{
+   if(target.architectures.length&&lib.architectures.length){
+    const missing=target.architectures.filter(a=>!lib.architectures.includes(a));
+    if(missing.length)findings.push({item:lib.name,level:"warn",status:"Architecture gap",detail:"Missing app architecture(s): "+missing.join(", ")+". The package may not support every app slice."});
+   }else if(!lib.architectures.length)findings.push({item:lib.name,level:"warn",status:"Not inspected",detail:lib.error||"No readable Mach-O architecture information."});
+  });
+  const embeddedNames=new Set(target.libraries.map(l=>l.name.toLowerCase()));
+  const appRelativeDeps=new Set();
+  const mainInfoPath=item.names.find(n=>/^Payload\/[^/]+\.app\/Info\.plist$/i.test(n));
+  if(mainInfoPath&&target.executable!=="Not declared"){
+   const mainPath=mainInfoPath.slice(0,mainInfoPath.lastIndexOf("/"))+"/"+target.executable;
+   const mainEntry=item.zip.file(mainPath);
+   if(mainEntry){
+    try{
+     const buf=await mainEntry.async("arraybuffer");
+     if(buf.byteLength<=134217728)machoArchitectures(buf).forEach(slice=>(slice.dependencies||[]).forEach(dep=>{
+      if((dep.startsWith("@rpath/")||dep.startsWith("@loader_path/")||dep.startsWith("@executable_path/"))&&!embeddedNames.has(dep.split("/").pop().toLowerCase()))appRelativeDeps.add(dep);
+     }));
+    }catch(e){}
+   }
+  }
+  target.libraries.forEach(lib=>(lib.dependencies||[]).forEach(dep=>{
+   if((dep.startsWith("@rpath/")||dep.startsWith("@loader_path/")||dep.startsWith("@executable_path/"))&&!embeddedNames.has(dep.split("/").pop().toLowerCase()))appRelativeDeps.add(dep);
+  }));
+  appRelativeDeps.forEach(dep=>findings.push({item:dep,level:"warn",status:"Review dependency",detail:"An app-relative library reference has no matching bundled binary name. Dynamic loader search paths are not fully resolved by this static check."}));
+  if(reference){
+   const appCmp=compareVersions(target.version,reference.version);
+   if(appCmp!==null)findings.push({item:"App version",level:appCmp<0?"warn":"info",status:appCmp<0?"Behind reference":appCmp===0?"Matches reference":"Ahead of reference",detail:"Target "+target.version+" · reference "+reference.version+"."});
+   const refByName=new Map(reference.libraries.map(l=>[l.name.toLowerCase(),l]));
+   target.libraries.forEach(lib=>{
+    const ref=refByName.get(lib.name.toLowerCase());
+    if(!ref)return;
+    const cmp=compareVersions(lib.version,ref.version);
+    if(cmp!==null)findings.push({item:lib.name,level:cmp<0?"warn":"info",status:cmp<0?"Behind reference":cmp===0?"Matches reference":"Ahead of reference",detail:"Target "+lib.version+" · reference "+ref.version+"."});
+    else findings.push({item:lib.name,level:"info",status:"Version unknown",detail:"A comparable version was not declared in both binaries."});
+   });
+   reference.libraries.forEach(lib=>{
+    if(!target.libraries.some(x=>x.name.toLowerCase()===lib.name.toLowerCase()))findings.push({item:lib.name,level:"warn",status:"Not bundled in target",detail:"Present in the reference package but absent from the selected IPA. Confirm whether this component is required for this app version."});
+   });
+   if(!findings.some(x=>x.item==="App version"))findings.push({item:"App version",level:"info",status:"Comparison unavailable",detail:"The app version fields could not be compared numerically."});
+  }else{
+   findings.push({item:"Version baseline",level:"info",status:"Reference needed",detail:"Import a separate trusted, newer IPA and select it above to compare app and library versions."});
+  }
+  const report={checked_at:new Date().toISOString(),target:target,reference:reference?{app:reference.app,bundle:reference.bundle,version:reference.version,build:reference.build,libraries:reference.libraries}:null,findings:findings,limitations:["Static package metadata only. This report does not inspect live memory or calculate/update runtime offsets.","A reference IPA is required to label app or library versions as behind/ahead.","App-relative dependency checks are heuristic and do not emulate the iOS dynamic loader's full @rpath resolution."]};
+  renderCompatibilityReport(report);
+ }catch(err){
+  $("compatSummary").innerHTML='<span class="badge warn">'+escapeHTML(err.message)+'</span>';
+ }
+}
+$("checkCompatibility").addEventListener("click",()=>{
+ const item=currentArchive();if(!item)return;
+ $("compatPanel").hidden=false;$("dylibPanel").hidden=true;$("plistEditor").hidden=true;
+ const options=state.ipas.filter(x=>x.id!==item.id);
+ $("compatReference").innerHTML='<option value="">Run package checks only</option>'+options.map(x=>'<option value="'+x.id+'">'+escapeHTML(x.app+" · "+x.version+" · "+x.file.name)+'</option>').join("");
+ $("compatSummary").innerHTML="";$("compatResults").innerHTML="";$("exportCompatibility").disabled=true;state.compatReport=null;
+ $("compatPanel").scrollIntoView({behavior:"smooth",block:"nearest"});
+});
+$("runCompatibility").addEventListener("click",runCompatibility);
+$("exportCompatibility").addEventListener("click",()=>{
+ if(!state.compatReport)return;
+ downloadBlob(new Blob([JSON.stringify(state.compatReport,null,2)],{type:"application/json"}),"PlutoSign-CompatibilityReport.json");
+});
+
 $("scanDylibs").addEventListener("click",scanDylibs);
 function renderArchive(){
  const q=$("archiveSearch").value.trim().toLowerCase(),prefix=state.archivePath?state.archivePath+"/":"";
