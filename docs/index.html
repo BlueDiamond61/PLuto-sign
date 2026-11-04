@@ -1311,7 +1311,7 @@ function isProtectedBinaryEntry(path,bytes){
  if(bytes.length>=4){
   const view=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
   const little=view.getUint32(0,true),big=view.getUint32(0,false);
-  if([0xfeedface,0xfeedfacf,0xcefaedfe,0xcffaedfe].includes(little)||[0xfeedface,0xfeedfacf].includes(big))return true;
+  if([0xfeedface,0xfeedfacf,0xcefaedfe,0xcffaedfe,0xcafebabe,0xcafebabf,0xbebafeca,0xbfbafeca].includes(little)||[0xfeedface,0xfeedfacf,0xcafebabe,0xcafebabf].includes(big))return true;
  }
  return false;
 }
@@ -1353,7 +1353,6 @@ async function previewEntry(path){
    let text=decodeEditableText(bytes);
    if(ext==="plist")text=JSON.stringify(parsePlistFull(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength)),null,2);
    else if(ext==="json"){try{text=JSON.stringify(JSON.parse(text),null,2);}catch(error){}}
-   if(true){
    const area=document.createElement("textarea");area.className="preview-text";area.readOnly=false;area.spellcheck=false;area.autocapitalize="off";area.setAttribute("autocorrect","off");area.setAttribute("autocomplete","off");area.setAttribute("aria-label","Editable file contents");area.value=text;
    out.appendChild(area);
    const hint=document.createElement("div");hint.className="preview-keyboard-hint";hint.textContent="Tap the text to open your phone keyboard. Use Select All, then Backspace to clear selected text, or use the controls below.";out.appendChild(hint);
@@ -1376,7 +1375,6 @@ async function previewEntry(path){
    });
    actions.insertBefore(selectAll,remove);actions.insertBefore(deleteSelection,remove);actions.insertBefore(clearAll,remove);actions.insertBefore(save,remove);
    const note=document.createElement("div");note.className="rowdetail";note.textContent=sizeText(bytes.length)+" bytes · UTF-8 text editor · changes apply only after Save changes";out.appendChild(note);
-   }
   }
  }catch(err){
   const message=document.createElement("div");message.className="callout";message.textContent="Could not open preview: "+err.message;out.appendChild(message);
