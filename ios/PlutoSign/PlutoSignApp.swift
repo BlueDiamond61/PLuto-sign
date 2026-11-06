@@ -675,7 +675,7 @@ struct Dashboard: View {
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(Style.violet)
                         }
-                        Link(destination: URL(string: "https://github.com/BlueDiamond61/PLuto-sign/releases/latest")!) {
+                        Link(destination: URL(string: "https://github.com/BlueDiamond61/PLuto-sign/releases")!) {
                             Label("Update App", systemImage: "arrow.up.circle")
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(Style.violet)
