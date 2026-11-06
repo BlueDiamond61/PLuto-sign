@@ -21,3 +21,13 @@ The `.mobileconfig` installs only a removable Web Clip shortcut to the public ho
 Open `ios/PlutoSign.xcodeproj` in Xcode on macOS. The project includes an AppIcon asset catalog. GitHub Actions builds an iOS Simulator target on a hosted macOS runner. The simulator artifact is not installable on a physical iPhone.
 
 Do not commit P12/PFX files, passwords, private keys or provisioning profiles to this public repository.
+
+
+## Native C and C++ support
+
+The Xcode target includes a small native support folder with both C and C++ translation units.
+- `NativeSupport/Offsets.h` describes **static IPA file offsets only** and provides a file-bounds check. It does not define live process-memory addresses or patch targets.
+- `NativeSupport/Addresses.h` contains public Pluto Sign web URLs.
+- `FileOffsetValidation.c` and `PlutoFileInspector.cpp` demonstrate C and C++ compilation in the iOS target.
+
+The Home tab links directly to the removable Home Screen Web Clip profile and the latest GitHub release. The update link opens the release page; it does not silently install or replace the app.
