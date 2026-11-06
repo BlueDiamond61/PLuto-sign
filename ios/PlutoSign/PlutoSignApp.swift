@@ -100,7 +100,6 @@ enum PlutoKeychain {
             kSecValueData as String: data,
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         ]
-        SecItemDelete(query as CFDictionary)
         let status = SecItemAdd(query as CFDictionary, nil)
         guard status == errSecSuccess else { throw PlutoError.keychain(status) }
     }
@@ -119,7 +118,7 @@ enum PlutoKeychain {
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: "com.plutosign.signing-assets",
             kSecAttrAccount as String: account,
-            kSecReturnData as String: false,
+            kSecReturnAttributes as String: true,
             kSecMatchLimit as String: kSecMatchLimitOne
         ] as CFDictionary, &result)
         return status == errSecSuccess
@@ -158,7 +157,10 @@ enum IPAService {
     }
     static func metadata(_ ipa: URL) throws -> (String, String, String, String) {
         guard let archive = Archive(url: ipa, accessMode: .read) else { throw PlutoError.archive }
-        let paths = archive.map(\.path).filter { $0.hasPrefix("Payload/") && $0.hasSuffix(".app/Info.plist") }
+        let paths = archive.map(\.path).filter {
+            let lower = $0.lowercased()
+            return lower.hasPrefix("payload/") && lower.hasSuffix(".app/info.plist")
+        }
             .sorted { $0.split(separator: "/").count < $1.split(separator: "/").count }
         guard let path = paths.first else { throw PlutoError.info }
         guard let info = try PropertyListSerialization.propertyList(from: read(ipa, path, max: 4_000_000), options: [], format: nil) as? [String: Any] else { throw PlutoError.plist }
@@ -234,7 +236,7 @@ enum IPAService {
         }
     }
     static func synchronize(_ ipa: URL, version: String, build: String) throws -> URL {
-        let versionPattern = #"^[0-9]+(\\.[0-9]+){0,3}$"#
+        let versionPattern = #"^[0-9]+(\.[0-9]+){0,3}$"#
         let buildPattern = #"^[A-Za-z0-9._-]{1,64}$"#
         guard version.range(of: versionPattern, options: .regularExpression) != nil,
               build.range(of: buildPattern, options: .regularExpression) != nil,
@@ -446,7 +448,10 @@ enum IPAService {
         do {
             if asset.path.hasPrefix("keychain:") {
                 let account = String(asset.path.dropFirst(9))
-                guard PlutoKeychain.remove(account) else { throw PlutoError.keychain(errSecInternalComponent) }
+                guard PlutoKeychain.remove(account) else {
+                    self.error = "Keychain could not remove this signing identity. Try again."
+                    return
+                }
             } else {
                 try FileManager.default.removeItem(atPath: asset.path)
             }
