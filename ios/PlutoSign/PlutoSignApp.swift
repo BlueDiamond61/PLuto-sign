@@ -45,7 +45,7 @@ struct BundleRecord: Identifiable {
     var build: String
 }
 enum PlutoError: LocalizedError {
-    case archive, info, plist, missing, unsafe, large, keychain(OSStatus)
+    case archive, info, plist, missing, unsafe, large, invalidFile, keychain(OSStatus)
     var errorDescription: String? {
         switch self {
         case .archive: return "This IPA is not a readable ZIP archive."
@@ -54,6 +54,7 @@ enum PlutoError: LocalizedError {
         case .missing: return "The archive item could not be found."
         case .unsafe: return "An unsafe archive path was blocked."
         case .large: return "This file is too large for the built-in preview."
+        case .invalidFile: return "The selected file is not a supported signing asset."
         case .keychain(let status): return "Keychain error: \(status). Check the P12 password and try again."
         }
     }
@@ -100,37 +101,67 @@ enum PlutoKeychain {
             kSecValueData as String: data,
             kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         ]
-        SecItemDelete(query as CFDictionary)
         let status = SecItemAdd(query as CFDictionary, nil)
         guard status == errSecSuccess else { throw PlutoError.keychain(status) }
     }
-    static func remove(_ account: String) {
-        SecItemDelete([
+    static func remove(_ account: String) -> Bool {
+        let status = SecItemDelete([
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: "com.plutosign.signing-assets",
             kSecAttrAccount as String: account
         ] as CFDictionary)
+        return status == errSecSuccess || status == errSecItemNotFound
+    }
+
+    static func contains(_ account: String) -> Bool {
+        var result: CFTypeRef?
+        let status = SecItemCopyMatching([
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "com.plutosign.signing-assets",
+            kSecAttrAccount as String: account,
+            kSecReturnAttributes as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ] as CFDictionary, &result)
+        return status == errSecSuccess
     }
 }
 enum IPAService {
     static func safe(_ raw: String) -> String? {
-        let value = raw.replacingOccurrences(of: "\\", with: "/")
+        var value = raw.replacingOccurrences(of: "\\", with: "/")
+        while value.hasSuffix("/") { value.removeLast() }
         guard !value.isEmpty, !value.hasPrefix("/"), !value.contains("\0") else { return nil }
-        let parts = value.split(separator: "/")
-        guard !parts.isEmpty, !parts.contains(".."), !parts[0].contains(":") else { return nil }
+
+        // Reject traversal, empty path segments and drive-style paths before
+        // passing archive names to FileManager or ZIPFoundation.
+        let parts = value.split(separator: "/", omittingEmptySubsequences: false)
+        guard !parts.isEmpty,
+              parts.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }),
+              !parts[0].contains(":") else { return nil }
         return parts.joined(separator: "/")
     }
+
     static func read(_ ipa: URL, _ path: String, max: Int = 2_000_000) throws -> Data {
-        guard let archive = Archive(url: ipa, accessMode: .read), let entry = archive[path] else { throw PlutoError.missing }
+        guard let safePath = safe(path) else { throw PlutoError.unsafe }
+        guard max >= 0,
+              let archive = Archive(url: ipa, accessMode: .read),
+              let entry = archive[safePath] else { throw PlutoError.missing }
         guard entry.type == .file else { throw PlutoError.plist }
-        guard entry.uncompressedSize <= max else { throw PlutoError.large }
+        guard entry.uncompressedSize <= UInt64(max) else { throw PlutoError.large }
+
         var data = Data()
-        _ = try archive.extract(entry) { data.append($0) }
+        data.reserveCapacity(Int(entry.uncompressedSize))
+        _ = try archive.extract(entry) { chunk in
+            guard chunk.count <= max - data.count else { throw PlutoError.large }
+            data.append(chunk)
+        }
         return data
     }
     static func metadata(_ ipa: URL) throws -> (String, String, String, String) {
         guard let archive = Archive(url: ipa, accessMode: .read) else { throw PlutoError.archive }
-        let paths = archive.map(\.path).filter { $0.hasPrefix("Payload/") && $0.hasSuffix(".app/Info.plist") }
+        let paths = archive.map(\.path).filter {
+            let lower = $0.lowercased()
+            return lower.hasPrefix("payload/") && lower.hasSuffix(".app/info.plist")
+        }
             .sorted { $0.split(separator: "/").count < $1.split(separator: "/").count }
         guard let path = paths.first else { throw PlutoError.info }
         guard let info = try PropertyListSerialization.propertyList(from: read(ipa, path, max: 4_000_000), options: [], format: nil) as? [String: Any] else { throw PlutoError.plist }
@@ -143,7 +174,13 @@ enum IPAService {
     }
     static func list(_ ipa: URL, folder: String) throws -> [ArchiveRecord] {
         guard let archive = Archive(url: ipa, accessMode: .read) else { throw PlutoError.archive }
-        let prefix = folder.isEmpty ? "" : ((safe(folder) ?? "") + "/")
+        let safeFolder: String
+        if folder.isEmpty { safeFolder = "" }
+        else {
+            guard let normalized = safe(folder) else { throw PlutoError.unsafe }
+            safeFolder = normalized
+        }
+        let prefix = safeFolder.isEmpty ? "" : safeFolder + "/"
         var result: [String: ArchiveRecord] = [:]
         for entry in archive {
             guard let path = safe(entry.path) else { continue }
@@ -200,16 +237,32 @@ enum IPAService {
         }
     }
     static func synchronize(_ ipa: URL, version: String, build: String) throws -> URL {
-        guard !version.isEmpty, !build.isEmpty, let input = Archive(url: ipa, accessMode: .read) else { throw PlutoError.info }
-        let temp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        let tree = temp.appendingPathComponent("PayloadTree")
+        let versionPattern = #"^[0-9]+(\.[0-9]+){0,3}$"#
+        let buildPattern = #"^[A-Za-z0-9._-]{1,64}$"#
+        guard version.range(of: versionPattern, options: .regularExpression) != nil,
+              build.range(of: buildPattern, options: .regularExpression) != nil,
+              let input = Archive(url: ipa, accessMode: .read) else { throw PlutoError.info }
+
+        let temp = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let tree = temp.appendingPathComponent("PayloadTree", isDirectory: true)
         try FileManager.default.createDirectory(at: tree, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: temp) }
+
+        var expandedBytes: UInt64 = 0
+        var entryCount = 0
         for entry in input {
-            guard let path = safe(entry.path), entry.type != .symlink else { continue }
+            guard let path = safe(entry.path) else { throw PlutoError.unsafe }
+            guard entry.type != .symlink else { throw PlutoError.unsafe }
+            entryCount += 1
+            guard entryCount <= 50_000 else { throw PlutoError.large }
+            let (nextTotal, overflow) = expandedBytes.addingReportingOverflow(entry.uncompressedSize)
+            guard !overflow, nextTotal <= 4_000_000_000 else { throw PlutoError.large }
+            expandedBytes = nextTotal
+
             let dest = tree.appendingPathComponent(path)
-            if entry.type == .directory { try FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true) }
-            else {
+            if entry.type == .directory {
+                try FileManager.default.createDirectory(at: dest, withIntermediateDirectories: true)
+            } else {
                 try FileManager.default.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
                 _ = try input.extract(entry, to: dest)
             }
@@ -228,16 +281,18 @@ enum IPAService {
             changed += 1
         }
         guard changed > 0 else { throw PlutoError.info }
-        let outputURL = PlutoStorage.exports.appendingPathComponent("\(ipa.deletingPathExtension().lastPathComponent)-VersionSync-\(version).ipa")
-        try? FileManager.default.removeItem(at: outputURL)
-        guard let output = Archive(url: outputURL, accessMode: .create) else { throw PlutoError.archive }
+        let outputName = "\(ipa.deletingPathExtension().lastPathComponent)-VersionSync-\(version).ipa"
+        let temporaryArchive = temp.appendingPathComponent("Synchronized.ipa")
+        guard let output = Archive(url: temporaryArchive, accessMode: .create) else { throw PlutoError.archive }
         let files = FileManager.default.enumerator(at: tree, includingPropertiesForKeys: [.isRegularFileKey])
         while let file = files?.nextObject() as? URL {
             if (try? file.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true {
                 try output.addEntry(with: String(file.path.dropFirst(tree.path.count + 1)), fileURL: file, compressionMethod: .deflate)
             }
         }
-        _ = try metadata(outputURL)
+        _ = try metadata(temporaryArchive)
+        let outputURL = PlutoStorage.unique(outputName, in: PlutoStorage.exports)
+        try FileManager.default.moveItem(at: temporaryArchive, to: outputURL)
         return outputURL
     }
 }
@@ -279,12 +334,27 @@ enum IPAService {
     }
 
     func reload() {
-        guard let data = try? Data(contentsOf: PlutoStorage.library),
-              let lib = try? JSONDecoder().decode(Library.self, from: data) else { return }
-        ipas = lib.ipas.filter { FileManager.default.fileExists(atPath: $0.path) }
-        assets = lib.assets.filter { $0.path.hasPrefix("keychain:") || FileManager.default.fileExists(atPath: $0.path) }
-        documents = lib.documents.filter { FileManager.default.fileExists(atPath: $0.path) }
-        activity = lib.activity
+        guard FileManager.default.fileExists(atPath: PlutoStorage.library.path) else { return }
+        do {
+            let data = try Data(contentsOf: PlutoStorage.library)
+            let lib = try JSONDecoder().decode(Library.self, from: data)
+            ipas = lib.ipas.filter { FileManager.default.fileExists(atPath: $0.path) }
+            assets = lib.assets.filter {
+                if $0.path.hasPrefix("keychain:") {
+                    return PlutoKeychain.contains(String($0.path.dropFirst(9)))
+                }
+                return FileManager.default.fileExists(atPath: $0.path)
+            }
+            documents = lib.documents.filter { FileManager.default.fileExists(atPath: $0.path) }
+            activity = Array(lib.activity.prefix(12))
+
+            if ipas.count != lib.ipas.count || assets.count != lib.assets.count ||
+                documents.count != lib.documents.count || activity.count != lib.activity.count {
+                save()
+            }
+        } catch {
+            self.error = "Your saved library could not be read. The original library file was left untouched. \(error.localizedDescription)"
+        }
     }
 
     private func save() {
@@ -328,6 +398,11 @@ enum IPAService {
         let access = url.startAccessingSecurityScopedResource()
         defer { if access { url.stopAccessingSecurityScopedResource() } }
         do {
+            guard url.pathExtension.lowercased() == "mobileprovision" else { throw PlutoError.invalidFile }
+            let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+            let fileSize = (attributes[.size] as? NSNumber)?.int64Value ?? 0
+            guard fileSize > 0 else { throw PlutoError.invalidFile }
+            guard fileSize <= 10 * 1_024 * 1_024 else { throw PlutoError.large }
             let dest = PlutoStorage.unique(url.lastPathComponent, in: PlutoStorage.profiles)
             try FileManager.default.copyItem(at: url, to: dest)
             let detail = "Stored locally • Profile expiry, App ID, entitlements and certificate compatibility must be validated by the authorized macOS signing workflow."
@@ -367,6 +442,9 @@ enum IPAService {
     }
 
     func importP12(_ data: Data, name: String, password: String) throws {
+        let ext = URL(fileURLWithPath: name).pathExtension.lowercased()
+        guard ["p12", "pfx"].contains(ext), !data.isEmpty else { throw PlutoError.invalidFile }
+        guard data.count <= 20 * 1_024 * 1_024 else { throw PlutoError.large }
         try PlutoKeychain.validateP12(data, password: password)
         let account = UUID().uuidString
         try PlutoKeychain.save(data, account: account)
@@ -376,30 +454,48 @@ enum IPAService {
     }
 
     func remove(_ asset: AssetRecord) {
-        if asset.path.hasPrefix("keychain:") {
-            PlutoKeychain.remove(String(asset.path.dropFirst(9)))
-        } else {
-            try? FileManager.default.removeItem(atPath: asset.path)
+        do {
+            if asset.path.hasPrefix("keychain:") {
+                let account = String(asset.path.dropFirst(9))
+                guard PlutoKeychain.remove(account) else {
+                    self.error = "Keychain could not remove this signing identity. Try again."
+                    return
+                }
+            } else {
+                try FileManager.default.removeItem(atPath: asset.path)
+            }
+            assets.removeAll { $0.id == asset.id }
+            log("Removed \(asset.name)")
+        } catch {
+            self.error = "Could not remove \(asset.name): \(error.localizedDescription)"
         }
-        assets.removeAll { $0.id == asset.id }
-        log("Removed \(asset.name)")
     }
 
     func remove(_ ipa: IPARecord) {
-        try? FileManager.default.removeItem(at: ipa.url)
-        ipas.removeAll { $0.id == ipa.id }
-        log("Removed \(ipa.name)")
+        do {
+            try FileManager.default.removeItem(at: ipa.url)
+            ipas.removeAll { $0.id == ipa.id }
+            log("Removed \(ipa.name)")
+        } catch {
+            self.error = "Could not remove \(ipa.name): \(error.localizedDescription)"
+        }
     }
 
     func removeDocument(_ file: ImportedFileRecord) {
-        try? FileManager.default.removeItem(at: file.url)
-        documents.removeAll { $0.id == file.id }
-        log("Removed file \(file.name)")
+        do {
+            try FileManager.default.removeItem(at: file.url)
+            documents.removeAll { $0.id == file.id }
+            log("Removed file \(file.name)")
+        } catch {
+            self.error = "Could not remove \(file.name): \(error.localizedDescription)"
+        }
     }
 
     func signingReadiness(_ ipa: IPARecord, certificate: AssetRecord?, profile: AssetRecord?) -> String {
-        guard let certificate, certificate.kind == "P12 / PFX", certificate.path.hasPrefix("keychain:") else {
-            return "Select an imported P12/PFX identity."
+        guard let certificate, certificate.kind == "P12 / PFX",
+              certificate.path.hasPrefix("keychain:"),
+              PlutoKeychain.contains(String(certificate.path.dropFirst(9))) else {
+            return "Select an available P12/PFX identity stored in Keychain."
         }
         guard let profile, profile.kind == "Provisioning Profile",
               FileManager.default.fileExists(atPath: profile.path) else {
@@ -411,12 +507,30 @@ enum IPAService {
     }
 
     func signingRequest(_ ipa: IPARecord, _ cert: AssetRecord?, _ profile: AssetRecord?) throws -> URL {
-        let json = try JSONSerialization.data(withJSONObject: [
-            "ipa": ipa.name, "bundle_id": ipa.bundle, "version": ipa.version, "build": ipa.build,
-            "certificate": cert?.name ?? "Not selected", "profile": profile?.name ?? "Not selected",
-            "status": "Request only; actual signing must use an authorized signing workflow."
-        ], options: [.prettyPrinted, .sortedKeys])
-        let url = PlutoStorage.exports.appendingPathComponent("SigningRequest-\(UUID().uuidString.prefix(8)).json")
+        guard FileManager.default.fileExists(atPath: ipa.path),
+              let cert, cert.kind == "P12 / PFX", cert.path.hasPrefix("keychain:"),
+              PlutoKeychain.contains(String(cert.path.dropFirst(9))),
+              let profile, profile.kind == "Provisioning Profile",
+              FileManager.default.fileExists(atPath: profile.path) else {
+            throw PlutoError.missing
+        }
+
+        let formatter = ISO8601DateFormatter()
+        let request: [String: Any] = [
+            "schema_version": 1,
+            "created_at": formatter.string(from: Date()),
+            "ipa": [
+                "filename": ipa.name,
+                "bundle_id": ipa.bundle,
+                "version": ipa.version,
+                "build": ipa.build
+            ],
+            "certificate": ["filename": cert.name, "stored_in_keychain": true],
+            "provisioning_profile": ["filename": profile.name],
+            "status": "Handoff request only. No certificate bytes, password, private key, or signed IPA are included."
+        ]
+        let json = try JSONSerialization.data(withJSONObject: request, options: [.prettyPrinted, .sortedKeys])
+        let url = PlutoStorage.unique("SigningRequest-\(UUID().uuidString.prefix(8)).json", in: PlutoStorage.exports)
         try json.write(to: url, options: .atomic)
         return url
     }
@@ -666,13 +780,25 @@ struct Dashboard: View {
                     Text("Add the Pluto Sign homepage to your Home Screen.")
                         .font(.subheadline)
                         .foregroundStyle(.white)
-                    Link(destination: URL(string: "https://bluediamond61.github.io/PLuto-sign/")!) {
-                        HStack(spacing: 5) {
-                            Text("Open profile page")
-                            Image(systemName: "arrow.up.right")
+                    Text("Install the removable Home Screen shortcut, or check the latest published app release.")
+                        .font(.caption)
+                        .foregroundStyle(Style.muted)
+                    HStack(spacing: 14) {
+                        Link(destination: URL(string: "https://bluediamond61.github.io/PLuto-sign/pluto-sign-home.mobileconfig")!) {
+                            Label("Download profile", systemImage: "arrow.down.circle")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Style.violet)
                         }
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Style.violet)
+                        Link(destination: URL(string: "https://github.com/BlueDiamond61/PLuto-sign/releases")!) {
+                            Label("Update App", systemImage: "arrow.up.circle")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Style.violet)
+                        }
+                    }
+                    Link(destination: URL(string: "https://bluediamond61.github.io/PLuto-sign/")!) {
+                        Label("Open profile page", systemImage: "arrow.up.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Style.violet)
                     }
                 }
                 Spacer(minLength: 0)
