@@ -21,9 +21,9 @@
     "https://github.com/BlueDiamond61/PLuto-sign/releases"
 
 /* Replace placeholders with the values from the published app release. */
-#define PLUTO_SIGN_CURRENT_VERSION "1.0.0"
+#define PLUTO_SIGN_CURRENT_VERSION "1.0.1"
 #define PLUTO_SIGN_CURRENT_BUILD "1"
-#define PLUTO_SIGN_MINIMUM_SUPPORTED_VERSION "1.0.0"
+#define PLUTO_SIGN_MINIMUM_SUPPORTED_VERSION "1.0.1"
 #define PLUTO_SIGN_UPDATE_CHANNEL "stable"
 
 /* Update behavior */
