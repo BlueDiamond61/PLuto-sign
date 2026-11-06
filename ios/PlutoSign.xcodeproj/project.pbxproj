@@ -4,6 +4,14 @@
  classes = {};
  objectVersion = 56;
  objects = {
+  A10000000000000000000004 = {isa = PBXBuildFile; fileRef = A20000000000000000000004; };
+  A10000000000000000000005 = {isa = PBXBuildFile; fileRef = A20000000000000000000005; };
+  A20000000000000000000004 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.c; path = FileOffsetValidation.c; sourceTree = "<group>"; };
+  A20000000000000000000005 = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = PlutoFileInspector.cpp; sourceTree = "<group>"; };
+  A20000000000000000000006 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Offsets.h; sourceTree = "<group>"; };
+  A20000000000000000000007 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Addresses.h; sourceTree = "<group>"; };
+  A20000000000000000000008 = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = PlutoFileInspector.hpp; sourceTree = "<group>"; };
+  A40000000000000000000004 = {isa = PBXGroup; children = (A20000000000000000000004, A20000000000000000000005, A20000000000000000000006, A20000000000000000000007, A20000000000000000000008,); path = NativeSupport; sourceTree = "<group>"; };
   A10000000000000000000001 = {isa = PBXBuildFile; fileRef = A20000000000000000000001; };
   A10000000000000000000002 = {isa = PBXBuildFile; productRef = A70000000000000000000001; };
   A10000000000000000000003 = {isa = PBXBuildFile; fileRef = A20000000000000000000003; };
@@ -12,11 +20,11 @@
   A20000000000000000000003 = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
   A30000000000000000000001 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000002,); runOnlyForDeploymentPostprocessing = 0; };
   A40000000000000000000001 = {isa = PBXGroup; children = (A40000000000000000000002, A40000000000000000000003,); sourceTree = "<group>"; };
-  A40000000000000000000002 = {isa = PBXGroup; children = (A20000000000000000000001, A20000000000000000000003,); path = PlutoSign; sourceTree = "<group>"; };
+  A40000000000000000000002 = {isa = PBXGroup; children = (A20000000000000000000001, A20000000000000000000003, A40000000000000000000004,); path = PlutoSign; sourceTree = "<group>"; };
   A40000000000000000000003 = {isa = PBXGroup; children = (A20000000000000000000002,); name = Products; sourceTree = "<group>"; };
   A50000000000000000000001 = {isa = PBXNativeTarget; buildConfigurationList = A80000000000000000000001; buildPhases = (A60000000000000000000001, A30000000000000000000001, A60000000000000000000002,); buildRules = (); dependencies = (); name = PlutoSign; packageProductDependencies = (A70000000000000000000001,); productName = PlutoSign; productReference = A20000000000000000000002; productType = "com.apple.product-type.application"; };
   A50000000000000000000002 = {isa = PBXProject; attributes = {BuildIndependentTargetsInParallel = 1; LastUpgradeCheck = 1600; TargetAttributes = {A50000000000000000000001 = {CreatedOnToolsVersion = 16.0; }; }; }; buildConfigurationList = A80000000000000000000002; compatibilityVersion = "Xcode 14.0"; developmentRegion = en; mainGroup = A40000000000000000000001; packageReferences = (A90000000000000000000001,); productRefGroup = A40000000000000000000003; projectDirPath = ""; projectRoot = ""; targets = (A50000000000000000000001,); };
-  A60000000000000000000001 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001,); runOnlyForDeploymentPostprocessing = 0; };
+  A60000000000000000000001 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001, A10000000000000000000004, A10000000000000000000005,); runOnlyForDeploymentPostprocessing = 0; };
   A60000000000000000000002 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000003,); runOnlyForDeploymentPostprocessing = 0; };
   A70000000000000000000001 = {isa = XCSwiftPackageProductDependency; package = A90000000000000000000001; productName = ZIPFoundation; };
   A80000000000000000000001 = {isa = XCConfigurationList; buildConfigurations = (AA00000000000000000003, AA00000000000000000004,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
