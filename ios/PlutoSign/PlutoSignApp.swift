@@ -666,13 +666,25 @@ struct Dashboard: View {
                     Text("Add the Pluto Sign homepage to your Home Screen.")
                         .font(.subheadline)
                         .foregroundStyle(.white)
-                    Link(destination: URL(string: "https://bluediamond61.github.io/PLuto-sign/")!) {
-                        HStack(spacing: 5) {
-                            Text("Open profile page")
-                            Image(systemName: "arrow.up.right")
+                    Text("Install the removable Home Screen shortcut, or check the latest published app release.")
+                        .font(.caption)
+                        .foregroundStyle(Style.muted)
+                    HStack(spacing: 14) {
+                        Link(destination: URL(string: "https://bluediamond61.github.io/PLuto-sign/pluto-sign-home.mobileconfig")!) {
+                            Label("Download profile", systemImage: "arrow.down.circle")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Style.violet)
                         }
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(Style.violet)
+                        Link(destination: URL(string: "https://github.com/BlueDiamond61/PLuto-sign/releases/latest")!) {
+                            Label("Update App", systemImage: "arrow.up.circle")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Style.violet)
+                        }
+                    }
+                    Link(destination: URL(string: "https://bluediamond61.github.io/PLuto-sign/")!) {
+                        Label("Open profile page", systemImage: "arrow.up.right")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Style.violet)
                     }
                 }
                 Spacer(minLength: 0)
