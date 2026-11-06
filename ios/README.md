@@ -21,3 +21,24 @@ The `.mobileconfig` installs only a removable Web Clip shortcut to the public ho
 Open `ios/PlutoSign.xcodeproj` in Xcode on macOS. The project includes an AppIcon asset catalog. GitHub Actions builds an iOS Simulator target on a hosted macOS runner. The simulator artifact is not installable on a physical iPhone.
 
 Do not commit P12/PFX files, passwords, private keys or provisioning profiles to this public repository.
+
+
+## Native C and C++ support
+
+The Xcode target includes a small native support folder with both C and C++ translation units.
+- `NativeSupport/Offsets.h` describes **static IPA file offsets only** and provides a file-bounds check. It does not define live process-memory addresses or patch targets.
+- `NativeSupport/Addresses.h` contains public Pluto Sign web URLs.
+- `FileOffsetValidation.c` and `PlutoFileInspector.cpp` demonstrate C and C++ compilation in the iOS target.
+
+The Home tab links directly to the removable Home Screen Web Clip profile and the latest GitHub release. The update link opens the release page; it does not silently install or replace the app.
+
+
+## Reliability and archive safeguards
+
+- Archive paths are normalized and traversal/drive-style paths are rejected before extraction or preview.
+- Text previews enforce declared and streamed size limits to avoid loading oversized archive entries into memory.
+- Version synchronization accepts a constrained version/build format, rejects symbolic links and oversized archives, writes to a temporary archive, verifies the result, and chooses a new export name instead of overwriting an earlier copy.
+- Library reload checks that locally stored files and Keychain identities still exist; corrupt library data is reported without replacing the original file.
+- Delete actions only remove library records after the corresponding file or Keychain item was successfully removed.
+- P12/PFX imports are size-limited and password-validated locally. Provisioning-profile imports are size-limited and stored locally; this is not a full profile-signature or compatibility validation.
+- Signing handoff JSON contains filenames and package metadata only. It never exports certificate bytes, passwords, or private keys, and it is not a signed IPA.
