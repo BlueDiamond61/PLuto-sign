@@ -45,7 +45,7 @@ struct BundleRecord: Identifiable {
     var build: String
 }
 enum PlutoError: LocalizedError {
-    case archive, info, plist, missing, unsafe, large, keychain(OSStatus)
+    case archive, info, plist, missing, unsafe, large, invalidFile, keychain(OSStatus)
     var errorDescription: String? {
         switch self {
         case .archive: return "This IPA is not a readable ZIP archive."
@@ -54,6 +54,7 @@ enum PlutoError: LocalizedError {
         case .missing: return "The archive item could not be found."
         case .unsafe: return "An unsafe archive path was blocked."
         case .large: return "This file is too large for the built-in preview."
+        case .invalidFile: return "The selected file is not a supported signing asset."
         case .keychain(let status): return "Keychain error: \(status). Check the P12 password and try again."
         }
     }
@@ -397,6 +398,11 @@ enum IPAService {
         let access = url.startAccessingSecurityScopedResource()
         defer { if access { url.stopAccessingSecurityScopedResource() } }
         do {
+            guard url.pathExtension.lowercased() == "mobileprovision" else { throw PlutoError.invalidFile }
+            let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+            let fileSize = (attributes[.size] as? NSNumber)?.int64Value ?? 0
+            guard fileSize > 0 else { throw PlutoError.invalidFile }
+            guard fileSize <= 10 * 1_024 * 1_024 else { throw PlutoError.large }
             let dest = PlutoStorage.unique(url.lastPathComponent, in: PlutoStorage.profiles)
             try FileManager.default.copyItem(at: url, to: dest)
             let detail = "Stored locally • Profile expiry, App ID, entitlements and certificate compatibility must be validated by the authorized macOS signing workflow."
@@ -436,6 +442,9 @@ enum IPAService {
     }
 
     func importP12(_ data: Data, name: String, password: String) throws {
+        let ext = URL(fileURLWithPath: name).pathExtension.lowercased()
+        guard ["p12", "pfx"].contains(ext), !data.isEmpty else { throw PlutoError.invalidFile }
+        guard data.count <= 20 * 1_024 * 1_024 else { throw PlutoError.large }
         try PlutoKeychain.validateP12(data, password: password)
         let account = UUID().uuidString
         try PlutoKeychain.save(data, account: account)
@@ -483,8 +492,10 @@ enum IPAService {
     }
 
     func signingReadiness(_ ipa: IPARecord, certificate: AssetRecord?, profile: AssetRecord?) -> String {
-        guard let certificate, certificate.kind == "P12 / PFX", certificate.path.hasPrefix("keychain:") else {
-            return "Select an imported P12/PFX identity."
+        guard let certificate, certificate.kind == "P12 / PFX",
+              certificate.path.hasPrefix("keychain:"),
+              PlutoKeychain.contains(String(certificate.path.dropFirst(9))) else {
+            return "Select an available P12/PFX identity stored in Keychain."
         }
         guard let profile, profile.kind == "Provisioning Profile",
               FileManager.default.fileExists(atPath: profile.path) else {
