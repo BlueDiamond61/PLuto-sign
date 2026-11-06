@@ -31,3 +31,14 @@ The Xcode target includes a small native support folder with both C and C++ tran
 - `FileOffsetValidation.c` and `PlutoFileInspector.cpp` demonstrate C and C++ compilation in the iOS target.
 
 The Home tab links directly to the removable Home Screen Web Clip profile and the latest GitHub release. The update link opens the release page; it does not silently install or replace the app.
+
+
+## Reliability and archive safeguards
+
+- Archive paths are normalized and traversal/drive-style paths are rejected before extraction or preview.
+- Text previews enforce declared and streamed size limits to avoid loading oversized archive entries into memory.
+- Version synchronization accepts a constrained version/build format, rejects symbolic links and oversized archives, writes to a temporary archive, verifies the result, and chooses a new export name instead of overwriting an earlier copy.
+- Library reload checks that locally stored files and Keychain identities still exist; corrupt library data is reported without replacing the original file.
+- Delete actions only remove library records after the corresponding file or Keychain item was successfully removed.
+- P12/PFX imports are size-limited and password-validated locally. Provisioning-profile imports are size-limited and stored locally; this is not a full profile-signature or compatibility validation.
+- Signing handoff JSON contains filenames and package metadata only. It never exports certificate bytes, passwords, or private keys, and it is not a signed IPA.
