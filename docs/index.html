@@ -1335,7 +1335,7 @@ function renderArchive(){
  $("breadcrumbs").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{state.archivePath=b.dataset.path;renderArchive();}));
  let rows=new Map();
  if(q){
-  state.archiveNames.filter(n=>n.toLowerCase().includes(q)).slice(0,400).forEach(n=>rows.set(n,{path:n,name:n.split("/").pop(),folder:false}));
+  state.archiveNames.filter(n=>n.toLowerCase().includes(q)).slice(0,1000).forEach(n=>rows.set(n,{path:n,name:n.split("/").pop(),folder:false}));
  }else{
   state.archiveNames.forEach(n=>{if(!n.startsWith(prefix))return;const rest=n.slice(prefix.length);if(!rest)return;const parts=rest.split("/");const isFolder=parts.length>1;const child=prefix+parts[0];if(!rows.has(child))rows.set(child,{path:child,name:parts[0],folder:isFolder});});
  }
@@ -1393,7 +1393,11 @@ $("selectAllArchive").addEventListener("click",()=>{
 });
 $("clearArchiveSelection").addEventListener("click",()=>{selectedArchivePaths.clear();renderArchive();});
 $("deleteSelectedArchive").addEventListener("click",()=>deleteArchiveEntries(Array.from(selectedArchivePaths)));
-$("archiveSearch").addEventListener("input",renderArchive);
+let archiveSearchDebounce=null;
+$("archiveSearch").addEventListener("input",()=>{
+ if(archiveSearchDebounce!==null)clearTimeout(archiveSearchDebounce);
+ archiveSearchDebounce=setTimeout(()=>{archiveSearchDebounce=null;renderArchive();},120);
+});
 let archivePreviewURL=null;
 function isProtectedBinaryEntry(path,bytes){
  const lower=String(path||"").toLowerCase();
@@ -1419,7 +1423,7 @@ function isProtectedBinaryEntry(path,bytes){
  return false;
 }
 function decodeEditableText(bytes){
- if(bytes.length>1024*1024)throw new Error("This file exceeds the 1 MB in-browser editor limit. Download it to edit separately.");
+ if(bytes.length>4*1024*1024)throw new Error("This file exceeds the 4 MB in-browser editor limit. Download it to edit separately.");
  if(bytes.includes(0))throw new Error("This file contains binary data and cannot be opened in the text editor.");
  let value;
  try{value=new TextDecoder("utf-8",{fatal:true}).decode(bytes);}
@@ -1446,15 +1450,22 @@ async function previewEntry(path){
  try{
   const imageTypes={png:"image/png",jpg:"image/jpeg",jpeg:"image/jpeg",gif:"image/gif",webp:"image/webp",bmp:"image/bmp",heic:"image/heic"};
   if(imageTypes[ext]){
+   const declaredSize=Number(entry._data&&entry._data.uncompressedSize);
+   if(!Number.isSafeInteger(declaredSize)||declaredSize<0)throw new Error("The archive did not provide a safe file-size estimate. Download the original file instead.");
+   if(declaredSize>16*1024*1024)throw new Error("This image exceeds the 16 MB preview limit. Download the original file instead.");
    const blob=await entry.async("blob");
    archivePreviewURL=URL.createObjectURL(new Blob([blob],{type:imageTypes[ext]}));
    const img=document.createElement("img");img.alt="Preview of "+path;img.src=archivePreviewURL;out.appendChild(img);
    const note=document.createElement("div");note.className="rowdetail";note.textContent=sizeText(blob.size)+" · image preview";out.appendChild(note);
   }else{
+   const declaredSize=Number(entry._data&&entry._data.uncompressedSize);
+   if(!Number.isSafeInteger(declaredSize)||declaredSize<0)throw new Error("The archive did not provide a safe file-size estimate. Download the original file instead.");
+   const previewLimit=ext==="plist"?8*1024*1024:4*1024*1024;
+   if(declaredSize>previewLimit)throw new Error("This file exceeds the "+(previewLimit/1024/1024)+" MB preview limit. Download the original file instead.");
    const bytes=await entry.async("uint8array");
    let text;
    if(ext==="plist"){
-    if(bytes.byteLength>4*1024*1024)throw new Error("This property list exceeds the 4 MB preview limit.");
+    if(bytes.byteLength>8*1024*1024)throw new Error("This property list exceeds the 8 MB preview limit.");
     const plistBuffer=bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength);
     text=JSON.stringify(parsePlistFull(plistBuffer),null,2);
    }else{
