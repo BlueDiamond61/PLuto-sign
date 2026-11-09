@@ -53,7 +53,7 @@ enum PlutoError: LocalizedError {
         case .plist: return "The property list is invalid."
         case .missing: return "The archive item could not be found."
         case .unsafe: return "An unsafe archive path was blocked."
-        case .large: return "This file is too large for the built-in preview."
+        case .large: return "This file exceeds the supported size limit."
         case .invalidFile: return "The selected file is not a supported signing asset."
         case .keychain(let status): return "Keychain error: \(status). Check the P12 password and try again."
         }
@@ -71,6 +71,15 @@ enum PlutoStorage {
             try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         }
     }
+    static func readLimited(_ url: URL, maxBytes: Int64) throws -> Data {
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        guard let size = (attributes[.size] as? NSNumber)?.int64Value, size > 0 else { throw PlutoError.invalidFile }
+        guard size <= maxBytes else { throw PlutoError.large }
+        let data = try Data(contentsOf: url, options: .mappedIfSafe)
+        guard Int64(data.count) <= maxBytes else { throw PlutoError.large }
+        return data
+    }
+
     static func unique(_ name: String, in folder: URL) -> URL {
         let input = URL(fileURLWithPath: name)
         let stem = input.deletingPathExtension().lastPathComponent
@@ -99,7 +108,7 @@ enum PlutoKeychain {
             kSecAttrService as String: "com.plutosign.signing-assets",
             kSecAttrAccount as String: account,
             kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
         ]
         let status = SecItemAdd(query as CFDictionary, nil)
         guard status == errSecSuccess else { throw PlutoError.keychain(status) }
@@ -424,6 +433,10 @@ enum IPAService {
             }
             if ext == "mobileprovision" {
                 importProfile(url)
+                continue
+            }
+            if ["p12", "pfx"].contains(ext) {
+                self.error = "Import P12/PFX files from Cert Import so the password can be checked and the identity stored in Keychain."
                 continue
             }
             do {
@@ -1209,7 +1222,7 @@ struct Assets: View {
                     let url = try result.get()
                     let access = url.startAccessingSecurityScopedResource()
                     defer { if access { url.stopAccessingSecurityScopedResource() } }
-                    candidate = try Data(contentsOf: url)
+                    candidate = try PlutoStorage.readLimited(url, maxBytes: 20 * 1_024 * 1_024)
                     candidateName = url.lastPathComponent
                     askPassword = true
                 } catch { self.error = error.localizedDescription }
@@ -1481,7 +1494,7 @@ struct SignPrep: View {
                     let url = try result.get()
                     let access = url.startAccessingSecurityScopedResource()
                     defer { if access { url.stopAccessingSecurityScopedResource() } }
-                    candidate = try Data(contentsOf: url)
+                    candidate = try PlutoStorage.readLimited(url, maxBytes: 20 * 1_024 * 1_024)
                     candidateName = url.lastPathComponent
                     askPassword = true
                 } catch {
