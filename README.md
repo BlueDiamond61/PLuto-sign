@@ -33,6 +33,14 @@ The Home tab links to the removable Home Screen Web Clip profile and the latest 
 
 Admin sign-in is not enabled until a server-side HTTPS authentication endpoint is configured. Do not put an admin token in the app or repository, even in obfuscated form. See `ios/ADMIN_AUTH_SETUP.md` for the required server-side design.
 
+## Browser IPA preview limits and performance
+
+The website previews UTF-8 text files up to 4 MB, property lists up to 8 MB, and images up to 16 MB. The native app's archive text reader is capped at 8 MB. Larger entries remain available through the Download original action.
+
+The browser checks an archive entry's declared uncompressed size before preview decompression, debounces archive search input, caches directory indexes for repeated folder navigation, and delegates archive-list events instead of attaching handlers to every rendered row. Search results show up to 1,000 matches.
+
+These are preview limits, not a claim that every IPA can be fully loaded by every browser. Large archives still require sufficient device memory and storage.
+
 ## Reliability and archive safeguards
 
 - Archive paths are normalized and traversal/drive-style paths are rejected before extraction or preview.
