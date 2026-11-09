@@ -1322,6 +1322,45 @@ async function copyArchiveDetails(item,path,isFolder){
  toast(copied?message:"Clipboard access is unavailable in this browser.");
 }
 const selectedArchivePaths=new Set();
+const archiveIndexCache=new WeakMap();
+function getArchiveIndex(names){
+ let cached=archiveIndexCache.get(names);
+ if(cached)return cached;
+ const directories=new Map();
+ const lowerNames=names.map(path=>({path,lower:path.toLowerCase()}));
+ for(const path of names){
+  const parts=path.split("/");
+  let parent="";
+  for(let i=0;i<parts.length;i++){
+   const child=parent?parent+"/"+parts[i]:parts[i];
+   let rows=directories.get(parent);
+   if(!rows){rows=new Map();directories.set(parent,rows);}
+   if(!rows.has(child))rows.set(child,{path:child,name:parts[i],folder:i<parts.length-1});
+   parent=child;
+  }
+ }
+ cached={directories,lowerNames};
+ archiveIndexCache.set(names,cached);
+ return cached;
+}
+$("archiveList").addEventListener("change",event=>{
+ const box=event.target.closest("[data-select-archive]");
+ if(!box)return;
+ if(box.checked)selectedArchivePaths.add(box.dataset.selectArchive);
+ else selectedArchivePaths.delete(box.dataset.selectArchive);
+ box.closest(".archiveitem").classList.toggle("selected",box.checked);
+ updateArchiveSelectionUI();
+});
+$("archiveList").addEventListener("click",event=>{
+ const entryButton=event.target.closest("[data-entry]");
+ if(entryButton){
+  if(entryButton.dataset.folder==="true"){state.archivePath=entryButton.dataset.entry;renderArchive();}
+  else previewEntry(entryButton.dataset.entry);
+  return;
+ }
+ const copyButton=event.target.closest("[data-copy-archive]");
+ if(copyButton)copyArchiveDetails(currentArchive(),copyButton.dataset.copyArchive,copyButton.dataset.copyFolder==="true");
+});
 function updateArchiveSelectionUI(){
  const count=selectedArchivePaths.size;
  $("archiveSelectionCount").textContent=count+" selected";
@@ -1333,20 +1372,17 @@ function renderArchive(){
  const q=$("archiveSearch").value.trim().toLowerCase(),prefix=state.archivePath?state.archivePath+"/":"";
  $("breadcrumbs").innerHTML='<button data-path="">Payload root</button>'+state.archivePath.split("/").filter(Boolean).map((part,i,all)=>'<span>›</span><button data-path="'+escapeHTML(all.slice(0,i+1).join("/"))+'">'+escapeHTML(part)+'</button>').join("");
  $("breadcrumbs").querySelectorAll("button").forEach(b=>b.addEventListener("click",()=>{state.archivePath=b.dataset.path;renderArchive();}));
- let rows=new Map();
+ const archiveIndex=getArchiveIndex(state.archiveNames);
+ let rows;
  if(q){
-  state.archiveNames.filter(n=>n.toLowerCase().includes(q)).slice(0,1000).forEach(n=>rows.set(n,{path:n,name:n.split("/").pop(),folder:false}));
+  rows=archiveIndex.lowerNames.filter(item=>item.lower.includes(q)).slice(0,1000).map(item=>({
+   path:item.path,name:item.path.split("/").pop(),folder:false
+  }));
  }else{
-  state.archiveNames.forEach(n=>{if(!n.startsWith(prefix))return;const rest=n.slice(prefix.length);if(!rest)return;const parts=rest.split("/");const isFolder=parts.length>1;const child=prefix+parts[0];if(!rows.has(child))rows.set(child,{path:child,name:parts[0],folder:isFolder});});
+  rows=Array.from(archiveIndex.directories.get(state.archivePath)||new Map()).map(entry=>entry[1]);
  }
- const list=Array.from(rows.values()).sort((a,b)=>a.folder===b.folder?a.name.localeCompare(b.name):a.folder?-1:1);
+ const list=rows.sort((a,b)=>a.folder===b.folder?a.name.localeCompare(b.name):a.folder?-1:1);
  $("archiveList").innerHTML=list.length?list.map(r=>'<div class="archiveitem'+(selectedArchivePaths.has(r.path)?" selected":"")+'"><div class="row grow"><label class="archive-select" aria-label="Select '+escapeHTML(r.name)+'"><input type="checkbox" data-select-archive="'+escapeHTML(r.path)+'" '+(selectedArchivePaths.has(r.path)?"checked":"")+'></label><span>'+(r.folder?"📁":"📄")+'</span><div class="grow"><div class="rowtitle">'+escapeHTML(r.name)+'</div><div class="rowdetail">'+escapeHTML(r.path)+'</div></div></div><button class="quiet smallbtn" data-copy-archive="'+escapeHTML(r.path)+'" data-copy-folder="'+r.folder+'">Copy</button><button data-entry="'+escapeHTML(r.path)+'" data-folder="'+r.folder+'">'+(r.folder?"Open":"Preview")+'</button></div>').join(""):'<div class="empty">No matching entries in this folder.</div>';
- $("archiveList").querySelectorAll("[data-select-archive]").forEach(box=>box.addEventListener("change",()=>{
-  if(box.checked)selectedArchivePaths.add(box.dataset.selectArchive);else selectedArchivePaths.delete(box.dataset.selectArchive);
-  box.closest(".archiveitem").classList.toggle("selected",box.checked);updateArchiveSelectionUI();
- }));
- $("archiveList").querySelectorAll("[data-entry]").forEach(b=>b.addEventListener("click",()=>{if(b.dataset.folder==="true"){state.archivePath=b.dataset.entry;renderArchive();}else previewEntry(b.dataset.entry);}));
- $("archiveList").querySelectorAll("[data-copy-archive]").forEach(button=>button.addEventListener("click",()=>copyArchiveDetails(currentArchive(),button.dataset.copyArchive,button.dataset.copyFolder==="true")));
  updateArchiveSelectionUI();
 }
 async function persistArchiveChanges(item){
