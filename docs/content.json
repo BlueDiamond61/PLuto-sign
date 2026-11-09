@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "app": {
+    "name": "Pluto Sign",
+    "edition": "WEB EDITION",
+    "tagline": "IPA & signing workspace",
+    "platform": "iOS and modern browsers",
+    "minimum_ios": "17.0"
+  },
+  "links": {
+    "source": "https://github.com/BlueDiamond61/PLuto-sign",
+    "releases": "https://github.com/BlueDiamond61/PLuto-sign/releases/latest",
+    "homepage": "https://bluediamond61.github.io/PLuto-sign/",
+    "roblox_app_store": "https://apps.apple.com/us/app/roblox/id431946152"
+  },
+  "roblox": {
+    "display_name": "Roblox",
+    "bundle_id": "com.roblox.robloxmobile",
+    "app_store_id": 431946152,
+    "import_note": "Choose an IPA already available to you. Pluto Sign does not distribute app packages."
+  },
+  "signing": {
+    "mode": "handoff-only",
+    "native_signing": false,
+    "note": "The app prepares a request manifest. Complete signing through an authorized Apple workflow on macOS."
+  }
+}
