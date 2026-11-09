@@ -290,7 +290,10 @@ enum IPAService {
                 try output.addEntry(with: String(file.path.dropFirst(tree.path.count + 1)), fileURL: file, compressionMethod: .deflate)
             }
         }
-        _ = try metadata(temporaryArchive)
+        let verifiedMetadata = try metadata(temporaryArchive)
+        guard verifiedMetadata.2 == version, verifiedMetadata.3 == build else {
+            throw PlutoError.plist
+        }
         let outputURL = PlutoStorage.unique(outputName, in: PlutoStorage.exports)
         try FileManager.default.moveItem(at: temporaryArchive, to: outputURL)
         return outputURL
@@ -368,6 +371,14 @@ enum IPAService {
 
     func log(_ value: String) {
         activity.insert(value, at: 0)
+        activity = Array(activity.prefix(12))
+        save()
+    }
+
+    func addSynchronizedIPA(_ ipa: IPARecord) {
+        ipas.removeAll { $0.id == ipa.id || $0.path == ipa.path }
+        ipas.insert(ipa, at: 0)
+        activity.insert("Saved version-synchronized IPA: \(ipa.version) (build \(ipa.build))", at: 0)
         activity = Array(activity.prefix(12))
         save()
     }
@@ -1145,9 +1156,13 @@ struct VersionSync: View {
                         do {
                             let output = try IPAService.synchronize(ipa.url, version: version, build: build)
                             let meta = try IPAService.metadata(output)
+                            guard meta.2 == version, meta.3 == build else {
+                                try? FileManager.default.removeItem(at: output)
+                                throw PlutoError.plist
+                            }
                             let size = (try? FileManager.default.attributesOfItem(atPath: output.path)[.size] as? NSNumber)?.int64Value ?? 0
-                            store.ipas.insert(IPARecord(name: output.lastPathComponent, path: output.path, app: meta.0, bundle: meta.1, version: meta.2, build: meta.3, size: size), at: 0)
-                            store.log("Created metadata-synchronized IPA")
+                            let record = IPARecord(name: output.lastPathComponent, path: output.path, app: meta.0, bundle: meta.1, version: meta.2, build: meta.3, size: size)
+                            store.addSynchronizedIPA(record)
                             dismiss()
                         } catch { self.error = error.localizedDescription }
                     }.disabled(rows.isEmpty || version.isEmpty || build.isEmpty)
