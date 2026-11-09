@@ -626,6 +626,7 @@ struct PlutoTabs: View {
         } message: {
             Text(store.error ?? "")
         }
+        .modifier(PlutoUpdatePrompt())
     }
 }
 
