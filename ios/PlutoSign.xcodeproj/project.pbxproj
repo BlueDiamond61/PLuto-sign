@@ -11,7 +11,8 @@
   A20000000000000000000006 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Offsets.h; sourceTree = "<group>"; };
   A20000000000000000000007 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Addresses.h; sourceTree = "<group>"; };
   A20000000000000000000008 = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.h; path = PlutoFileInspector.hpp; sourceTree = "<group>"; };
-  A40000000000000000000004 = {isa = PBXGroup; children = (A20000000000000000000004, A20000000000000000000005, A20000000000000000000006, A20000000000000000000007, A20000000000000000000008,); path = NativeSupport; sourceTree = "<group>"; };
+  A20000000000000000000009 = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = Updates.h; sourceTree = "<group>"; };
+  A40000000000000000000004 = {isa = PBXGroup; children = (A20000000000000000000004, A20000000000000000000005, A20000000000000000000006, A20000000000000000000007, A20000000000000000000008, A20000000000000000000009,); path = NativeSupport; sourceTree = "<group>"; };
   A10000000000000000000001 = {isa = PBXBuildFile; fileRef = A20000000000000000000001; };
   A10000000000000000000002 = {isa = PBXBuildFile; productRef = A70000000000000000000001; };
   A10000000000000000000003 = {isa = PBXBuildFile; fileRef = A20000000000000000000003; };
@@ -27,7 +28,7 @@
   A60000000000000000000001 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000001, A10000000000000000000004, A10000000000000000000005,); runOnlyForDeploymentPostprocessing = 0; };
   A60000000000000000000002 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000003,); runOnlyForDeploymentPostprocessing = 0; };
   A70000000000000000000001 = {isa = XCSwiftPackageProductDependency; package = A90000000000000000000001; productName = ZIPFoundation; };
-  A80000000000000000000001 = {isa = XCConfigurationList; buildConfigurations = (AA00000000000000000003, AA00000000000000000004,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+  A80000000000000000000001 = {isa = XCConfigurationList; buildConfigurations = (AA00000000000000000003, AA00000000000000000004,); defaultConfigurationName = Release; };
   A80000000000000000000002 = {isa = XCConfigurationList; buildConfigurations = (AA00000000000000000001, AA00000000000000000002,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
   AA00000000000000000001 = {isa = XCBuildConfiguration; buildSettings = {IPHONEOS_DEPLOYMENT_TARGET = 17.0; SDKROOT = iphoneos; SWIFT_VERSION = 5.0; }; name = Debug; };
   AA00000000000000000002 = {isa = XCBuildConfiguration; buildSettings = {IPHONEOS_DEPLOYMENT_TARGET = 17.0; SDKROOT = iphoneos; SWIFT_VERSION = 5.0; }; name = Release; };
@@ -36,5 +37,4 @@
   A90000000000000000000001 = {isa = XCRemoteSwiftPackageReference; repositoryURL = "https://github.com/weichsel/ZIPFoundation"; requirement = {kind = upToNextMajorVersion; minimumVersion = 0.9.19; }; };
  };
  rootObject = A50000000000000000000002;
-
 }
