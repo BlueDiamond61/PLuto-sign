@@ -16,6 +16,8 @@ The iOS app prepares a signing handoff; it does not execute Apple's macOS `codes
 
 The `.mobileconfig` installs only a removable Web Clip shortcut to the public homepage. It includes a custom PNG icon so iOS does not fall back to the plain white/gray square.
 
+The public web workspace reads its editable display metadata from `docs/content.json`. The manifest is versioned and validated by the GitHub Pages workflow; missing or invalid metadata falls back to built-in labels.
+
 ## Build
 
 Open `ios/PlutoSign.xcodeproj` in Xcode on macOS. The project includes an AppIcon asset catalog. GitHub Actions builds an iOS Simulator target on a hosted macOS runner. The simulator artifact is not installable on a physical iPhone.

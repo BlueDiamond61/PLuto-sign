@@ -2,6 +2,14 @@
 
 The app now has five main tabs: Home, View IPAs, Files, Cert Import and Sign IPA. The dashboard and shared panels use the Pluto Sign purple theme, and a custom AppIcon asset catalog has been added.
 
+## Maintenance patch
+- Added `docs/content.json` as the versioned source for web workspace labels and project links.
+- Removed the stale hard-coded Roblox package version and size from the import prompt; the workspace now asks users to select an IPA they already have.
+- Fixed IPA removal so the visible library is updated only after a saved browser copy is successfully deleted.
+- Added pre-read size checks for P12/PFX imports in the native app.
+- Prevented P12/PFX files from being copied into the general Documents library; they must use the password-checked Keychain import flow.
+- Changed certificate Keychain accessibility to require the device to be unlocked.
+
 ## Included
 - Multi-select IPA import and IPA metadata list.
 - Per-IPA archive browser and search.
