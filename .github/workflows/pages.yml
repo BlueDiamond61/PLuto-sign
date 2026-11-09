@@ -34,10 +34,10 @@ jobs:
           node <<'NODE'
           const fs = require('node:fs');
           const html = fs.readFileSync('docs/index.html', 'utf8');
-          const scripts = [...html.matchAll(/<script\\b[^>]*>([\\s\\S]*?)<\\/script>/gi)]
+          const scripts = [...html.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/gi)]
             .map(match => match[1]).filter(source => source.trim());
           if (!scripts.length) throw new Error('No inline application script found.');
-          new Function(scripts.join('\\n'));
+          new Function(scripts.join('\n'));
           NODE
       - name: Upload site
         uses: actions/upload-pages-artifact@v3
