@@ -549,23 +549,19 @@ async function editMainInfoPlist(){
  }catch(err){$("plistMessage").innerHTML='<span class="badge warn">'+escapeHTML(err.message)+'</span>';$("plistEditor").hidden=false;}
 }
 $("editInfo").addEventListener("click",editMainInfoPlist);
-$("savePlist").addEventListener("click",()=>{
+$("savePlist").addEventListener("click",async()=>{
  const item=currentArchive();if(!item||!state.editorPath)return;
  try{
   const value=JSON.parse($("plistJSON").value);
   const xml=plistToXML(value);
   item.zip.file(state.editorPath,xml,{binary:false});
-  item.modified=true;item.names=Object.keys(item.zip.files).filter(n=>!item.zip.files[n].dir);
   item.meta=value;item.app=value.CFBundleDisplayName||value.CFBundleName||item.app;
   item.bundle=value.CFBundleIdentifier||item.bundle;item.version=value.CFBundleShortVersionString||item.version;item.build=value.CFBundleVersion||item.build;
   state.editorSnapshot=$("plistJSON").value;
-  $("plistMessage").innerHTML='<span class="badge good">Changes applied to in-memory IPA copy</span>';
-  $("exportModified").hidden=false;
-  $("modifiedBadge").innerHTML='<span class="badge warn">Modified · original signature invalid</span>';
-  $("archiveTitle").textContent=item.app;
-  $("archiveSubtitle").textContent=item.file.name+" · "+item.names.length+" files · modified copy";
-  renderIPAs();refreshSigning();
-  saveIPARecord(item,true).then(()=>{renderIPAs();toast("Modified IPA saved locally. Its original signature is invalid.");}).catch(err=>toast("Modified IPA could not be saved locally: "+err.message));
+  const saved=await persistArchiveChanges(item);
+  $("plistMessage").innerHTML=saved
+   ?'<span class="badge good">Changes saved and verified in local IPA storage</span>'
+   :'<span class="badge warn">Changes are in memory only. Export the modified IPA before leaving.</span>';
  }catch(err){$("plistMessage").innerHTML='<span class="badge warn">'+escapeHTML(err.message)+'</span>';}
 });
 $("downloadPlist").addEventListener("click",()=>{
@@ -1366,8 +1362,10 @@ async function persistArchiveChanges(item){
   await saveIPARecord(item,true);
   renderIPAs();refreshSigning();renderMultiWindows();
   toast("Changes saved locally. The IPA signature is invalid; export and re-sign through an authorized workflow.");
+  return true;
  }catch(error){
   toast("Changes are in memory but local save failed: "+error.message+" Export the modified IPA before leaving.");
+  return false;
  }
 }
 async function deleteArchiveEntries(paths){
@@ -1454,10 +1452,16 @@ async function previewEntry(path){
    const note=document.createElement("div");note.className="rowdetail";note.textContent=sizeText(blob.size)+" · image preview";out.appendChild(note);
   }else{
    const bytes=await entry.async("uint8array");
-   if(isProtectedBinaryEntry(path,bytes))throw new Error("This is a binary, executable, image, archive, or document format. It can be downloaded, but not edited as text.");
-   let text=decodeEditableText(bytes);
-   if(ext==="plist")text=JSON.stringify(parsePlistFull(bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength)),null,2);
-   else if(ext==="json"){try{text=JSON.stringify(JSON.parse(text),null,2);}catch(error){}}
+   let text;
+   if(ext==="plist"){
+    if(bytes.byteLength>4*1024*1024)throw new Error("This property list exceeds the 4 MB preview limit.");
+    const plistBuffer=bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength);
+    text=JSON.stringify(parsePlistFull(plistBuffer),null,2);
+   }else{
+    if(isProtectedBinaryEntry(path,bytes))throw new Error("This is a binary, executable, image, archive, or document format. It can be downloaded, but not edited as text.");
+    text=decodeEditableText(bytes);
+    if(ext==="json"){try{text=JSON.stringify(JSON.parse(text),null,2);}catch(error){}}
+   }
    const area=document.createElement("textarea");area.className="preview-text";area.readOnly=false;area.spellcheck=false;area.autocapitalize="off";area.setAttribute("autocorrect","off");area.setAttribute("autocomplete","off");area.setAttribute("aria-label","Editable file contents");area.value=text;
    out.appendChild(area);
    const hint=document.createElement("div");hint.className="preview-keyboard-hint";hint.textContent="Tap the text to open your phone keyboard. Use Select All, then Backspace to clear selected text, or use the controls below.";out.appendChild(hint);
