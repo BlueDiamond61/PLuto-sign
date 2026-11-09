@@ -119,8 +119,8 @@ textarea.preview{font:11px/1.55 ui-monospace,SFMono-Regular,monospace;background
 <div class="shell">
 <header class="top">
   <img class="logo" src="./pluto-icon.png" alt="Pluto Sign">
-  <div><div class="brand">PLUTO SIGN</div><div class="tagline">IPA & signing workspace</div></div>
-  <div class="topspacer"></div><a class="secondary smallbtn" href="https://github.com/BlueDiamond61/PLuto-sign" target="_blank" rel="noopener noreferrer">GitHub Source</a><span class="pill">WEB EDITION</span>
+  <div><div class="brand">PLUTO SIGN</div><div class="tagline" id="appTagline">IPA & signing workspace</div></div>
+  <div class="topspacer"></div><a class="secondary smallbtn" href="https://github.com/BlueDiamond61/PLuto-sign" target="_blank" rel="noopener noreferrer">GitHub Source</a><span class="pill" id="editionPill">WEB EDITION</span>
 </header>
 
 <section class="hero">
@@ -296,7 +296,7 @@ textarea.preview{font:11px/1.55 ui-monospace,SFMono-Regular,monospace;background
 <script>
 (function(){
 "use strict";
-const state={ipas:[],files:[],cert:null,profile:null,archiveId:null,archivePath:"",archiveZip:null,archiveNames:[],compatReport:null,robloxRelease:null,ipaDB:null};
+const state={ipas:[],files:[],cert:null,profile:null,archiveId:null,archivePath:"",archiveZip:null,archiveNames:[],compatReport:null,robloxRelease:null,ipaDB:null,content:null};
 const $=id=>document.getElementById(id);
 const byId=id=>state.ipas.find(x=>x.id===id);
 function escapeHTML(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
@@ -306,6 +306,22 @@ function showTab(name){document.querySelectorAll(".tab").forEach(b=>b.classList.
 document.querySelectorAll("[data-tab]").forEach(b=>b.addEventListener("click",()=>showTab(b.dataset.tab)));
 document.querySelectorAll("[data-go]").forEach(b=>b.addEventListener("click",()=>showTab(b.dataset.go)));
 function updateCounts(){$("ipaCount").textContent=state.ipas.length;$("fileCount").textContent=state.files.length;$("assetCount").textContent=(state.cert?1:0)+(state.profile?1:0);}
+async function loadContentManifest(){
+ const edition=$("editionPill"),tagline=$("appTagline");
+ try{
+  const response=await fetch("./content.json",{cache:"no-store"});
+  if(!response.ok)throw new Error("Manifest request returned HTTP "+response.status+".");
+  const manifest=await response.json();
+  if(!manifest||manifest.schema_version!==1||!manifest.app||!manifest.roblox||!manifest.links||!manifest.signing)throw new Error("Unsupported content manifest format.");
+  state.content=manifest;
+  if(edition)edition.textContent=String(manifest.app.edition||"WEB EDITION");
+  if(tagline)tagline.textContent=String(manifest.app.tagline||"IPA & signing workspace");
+  renderIPAs();
+ }catch(error){
+  if(edition)edition.textContent="WEB EDITION";
+  console.warn("Pluto Sign content manifest unavailable; built-in defaults are active.",error);
+ }
+}
 const IPA_DB_NAME="PlutoSignLocalFiles";
 function openIPADatabase(){
  return new Promise((resolve,reject)=>{
@@ -514,11 +530,13 @@ function renderIPAs(){
  }).join("");
  const hasRoblox=state.ipas.some(isRobloxIPA);
  const showRobloxSlot=!hasRoblox&&(!q||"roblox roblox.ipa roblox.com".includes(q));
- const slot=showRobloxSlot?'<div class="card"><div class="row"><div class="iconbox">R</div><div class="grow"><div class="rowtitle">Roblox</div><div class="rowdetail">roblox.ipa · Prepared copy: v2.745.1138 · 105.8 MB</div><div class="rowdetail">Import the prepared file from your device to add it to this library.</div></div><span class="badge warn">Import required</span></div><div class="actions"><button class="primary smallbtn" id="importRobloxIPA">Import prepared Roblox IPA</button><a class="secondary smallbtn" href="https://www.roblox.com/" target="_blank" rel="noopener noreferrer">Open Roblox.com</a><a class="secondary smallbtn" href="https://apps.apple.com/us/app/roblox/id431946152" target="_blank" rel="noopener noreferrer">App Store</a></div><p class="hint" style="font-size:11px;margin-top:9px">First download <b>roblox.ipa</b> from this ChatGPT conversation to your device. Then choose it here. Pluto Sign checks for the Roblox bundle ID before importing and saves it in this browser.</p></div>':"";
+ const packageName=escapeHTML(state.content?.roblox?.display_name||"Roblox");
+ const packageHint=escapeHTML(state.content?.roblox?.import_note||"Choose an IPA already available to you. Pluto Sign does not distribute app packages.");
+ const slot=showRobloxSlot?'<div class="card"><div class="row"><div class="iconbox">R</div><div class="grow"><div class="rowtitle">'+packageName+'</div><div class="rowdetail">Official app package · import required</div><div class="rowdetail">'+packageHint+'</div></div><span class="badge warn">Import required</span></div><div class="actions"><button class="primary smallbtn" id="importRobloxIPA">Choose Roblox IPA</button><a class="secondary smallbtn" href="https://www.roblox.com/" target="_blank" rel="noopener noreferrer">Open Roblox.com</a><a class="secondary smallbtn" href="https://apps.apple.com/us/app/roblox/id431946152" target="_blank" rel="noopener noreferrer">App Store</a></div><p class="hint" style="font-size:11px;margin-top:9px">Select an IPA from your device. Pluto Sign checks the bundle identifier before importing and stores the file locally in this browser.</p></div>':"";
  $("ipaList").innerHTML=cards+slot+(!cards&&!slot?'<div class="empty"><b>No matching IPA packages</b>Choose an IPA file from your device to add it to this session.</div>':"");
  $("ipaList").querySelectorAll("[data-open]").forEach(b=>b.addEventListener("click",()=>openArchive(b.dataset.open)));
  $("ipaList").querySelectorAll("[data-share]").forEach(b=>b.addEventListener("click",()=>downloadIPA(b.dataset.share)));
- $("ipaList").querySelectorAll("[data-removeipa]").forEach(b=>b.addEventListener("click",()=>{const removedId=b.dataset.removeipa;state.ipas=state.ipas.filter(x=>x.id!==removedId);removeSavedIPA(removedId).catch(err=>toast("Local deletion failed: "+err.message));if(state.archiveId===removedId)closeArchive();updateCounts();renderIPAs();refreshSigning();renderRobloxMonitor();}));
+ $("ipaList").querySelectorAll("[data-removeipa]").forEach(b=>b.addEventListener("click",async()=>{const removedId=b.dataset.removeipa;const item=byId(removedId);try{if(item&&item.saved)await removeSavedIPA(removedId);state.ipas=state.ipas.filter(x=>x.id!==removedId);if(state.archiveId===removedId)closeArchive();updateCounts();renderIPAs();refreshSigning();renderRobloxMonitor();toast("IPA removed from this browser library.");}catch(err){toast("Could not remove saved IPA: "+err.message);}}));
  const importButton=$("importRobloxIPA");
  if(importButton)importButton.addEventListener("click",()=>$("robloxPicker").click());
  renderMultiWindows();
@@ -1675,7 +1693,7 @@ $("robloxPicker").addEventListener("change",e=>{if(e.target.files[0])importIPAs(
 $("generalPicker").addEventListener("change",e=>{Array.from(e.target.files).forEach(routeFile);e.target.value="";renderFiles();});
 $("certPicker").addEventListener("change",e=>{if(e.target.files[0]){state.cert=e.target.files[0];renderAssets();updateCounts();refreshSigning();toast("P12/PFX selected for this session.");}e.target.value="";});
 $("profilePicker").addEventListener("change",e=>{if(e.target.files[0]){state.profile=e.target.files[0];renderAssets();updateCounts();refreshSigning();toast("Provisioning profile selected for this session.");}e.target.value="";});
-updateCounts();renderIPAs();renderFiles();renderAssets();refreshSigning();loadSavedIPAs();
+updateCounts();renderIPAs();renderFiles();renderAssets();refreshSigning();loadContentManifest();loadSavedIPAs();
 })();
 </script>
 </body>
