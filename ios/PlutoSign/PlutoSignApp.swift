@@ -140,7 +140,7 @@ enum IPAService {
         return parts.joined(separator: "/")
     }
 
-    static func read(_ ipa: URL, _ path: String, max: Int = 2_000_000) throws -> Data {
+    static func read(_ ipa: URL, _ path: String, max: Int = 8_000_000) throws -> Data {
         guard let safePath = safe(path) else { throw PlutoError.unsafe }
         guard max >= 0,
               let archive = Archive(url: ipa, accessMode: .read),
