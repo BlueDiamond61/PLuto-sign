@@ -2,9 +2,11 @@
 #define PLUTO_FILE_INSPECTOR_HPP
 
 #include <cstdint>
-#include "Offsets.h"
+#include "Updates.h"
 
 namespace PlutoNative {
+
+/* A byte range within an IPA/archive file, never a process-memory address. */
 struct FileRange {
     std::uint64_t offset;
     std::uint64_t size;
@@ -14,6 +16,10 @@ struct FileRange {
         return PlutoFileOffsetIsInBounds(item, fileSize);
     }
 };
-}
 
-#endif
+/* Returns true only when the complete range fits inside the archive file. */
+bool isReadableRange(const FileRange& range, std::uint64_t fileSize) noexcept;
+
+} // namespace PlutoNative
+
+#endif /* PLUTO_FILE_INSPECTOR_HPP */
