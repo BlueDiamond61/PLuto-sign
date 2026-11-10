@@ -796,18 +796,18 @@ struct Dashboard: View {
                         .font(.caption)
                         .foregroundStyle(Style.muted)
                     HStack(spacing: 14) {
-                        Link(destination: URL(string: "https://bluediamond61.github.io/PLuto-sign/pluto-sign-home.mobileconfig")!) {
+                        Link(destination: URL(string: "https://Plutosigner.com/pluto-sign-home.mobileconfig")!) {
                             Label("Download profile", systemImage: "arrow.down.circle")
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(Style.violet)
                         }
-                        Link(destination: URL(string: "https://github.com/BlueDiamond61/PLuto-sign/releases")!) {
+                        Link(destination: URL(string: "https://Plutosigner.com/releases/latest")!) {
                             Label("Update App", systemImage: "arrow.up.circle")
                                 .font(.caption.weight(.semibold))
                                 .foregroundStyle(Style.violet)
                         }
                     }
-                    Link(destination: URL(string: "https://bluediamond61.github.io/PLuto-sign/")!) {
+                    Link(destination: URL(string: "https://Plutosigner.com/")!) {
                         Label("Open profile page", systemImage: "arrow.up.right")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(Style.violet)
