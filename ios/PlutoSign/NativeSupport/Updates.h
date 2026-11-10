@@ -14,11 +14,11 @@
 #define PLUTO_SIGN_PRODUCT_IDENTIFIER "com.bluediamond.plutosign"
 
 #define PLUTO_SIGN_RELEASES_URL \
-    "https://www.plutosign.com/releases"
+    "https://Plutosigner.com/releases"
 #define PLUTO_SIGN_LATEST_RELEASE_API \
     "https://api.github.com/repos/BlueDiamond61/PLuto-sign/releases/latest"
 #define PLUTO_SIGN_RELEASE_NOTES_URL \
-    "https://www.plutosign.com/releases"
+    "https://Plutosigner.com/releases"
 
 /* Replace placeholders with the values from the published app release. */
 #define PLUTO_SIGN_CURRENT_VERSION "1.0.0"
